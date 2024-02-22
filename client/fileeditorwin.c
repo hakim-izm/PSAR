@@ -15,7 +15,7 @@ G_DEFINE_TYPE(FileEditorWindow, file_editor_window, GTK_TYPE_APPLICATION_WINDOW)
 
 /*
  * OVERRIDEN METHODS
-*/
+ */
 
 static void file_editor_window_init(FileEditorWindow *win) {
 	GtkBuilder *builder;

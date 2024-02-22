@@ -10,13 +10,15 @@ struct _FileEditorConnect {
 	GSettings *settings;
 	GtkEntry *ip;
 	GtkEntry *port;
+	GtkButton *cancelBtn;
+	GtkButton *okBtn;
 };
 
 G_DEFINE_TYPE (FileEditorConnect, file_editor_connect, GTK_TYPE_DIALOG)
 
 /*
  * OVERRIDEN METHODS
-*/
+ */
 
 static void file_editor_connect_init (FileEditorConnect *connect) {
 	gtk_widget_init_template(GTK_WIDGET(connect));
@@ -34,10 +36,10 @@ static void file_editor_connect_init (FileEditorConnect *connect) {
 static void file_editor_connect_dispose (GObject *object) {
 	FileEditorConnect *connect;
 
-        const char *ip_addr = gtk_editable_get_text(GTK_EDITABLE(GTK_ENTRY(connect->ip)));
-        const char *port = gtk_editable_get_text(GTK_EDITABLE(GTK_ENTRY(connect->port)));
+	const char *ip_addr = gtk_editable_get_text(GTK_EDITABLE(GTK_ENTRY(connect->ip)));
+	const char *port = gtk_editable_get_text(GTK_EDITABLE(GTK_ENTRY(connect->port)));
 
-        printf("[DEBUG] IP ADDRESS: %s:%s\n", ip_addr, port);
+	printf("[DEBUG] IP ADDRESS: %s:%s\n", ip_addr, port);
 
 	connect = FILE_EDITOR_CONNECT(object);
 

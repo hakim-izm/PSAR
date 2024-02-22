@@ -7,7 +7,7 @@
 		<child internal-child="content_area">
 			<object class="GtkBox" id="content_area">
 				<child>
-					<object class="GtkGrid" id="grid">
+					<object class="GtkGrid" id="fieldsGrid">
 						<property name="margin-start">12</property>
 						<property name="margin-end">12</property>
 						<property name="margin-top">12</property>
@@ -53,6 +53,35 @@
 								<layout>
 									<property name="column">1</property>
 									<property name="row">1</property>
+								</layout>
+							</object>
+						</child>
+					</object>
+				</child>
+				<child>
+					<object class="GtkGrid" id="btnGrid">
+						<property name="margin-start">12</property>
+						<property name="margin-end">12</property>
+						<property name="margin-top">0</property>
+						<property name="margin-bottom">12</property>
+						<property name="row-spacing">12</property>
+						<property name="column-spacing">12</property>
+						<property name="column-homogeneous">1</property>
+						<child>
+							<object class="GtkButton" id="okBtn">
+							<property name="label">OK</property>
+								<layout>
+									<property name="column">1</property>
+									<property name="row">2</property>
+								</layout>
+							</object>
+						</child>
+						<child>
+							<object class="GtkButton" id="cancelBtn">
+							<property name="label">Cancel</property>
+								<layout>
+									<property name="column">0</property>
+									<property name="row">2</property>
 								</layout>
 							</object>
 						</child>

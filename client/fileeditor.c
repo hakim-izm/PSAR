@@ -13,7 +13,7 @@ G_DEFINE_TYPE(FileEditor, file_editor, GTK_TYPE_APPLICATION);
 
 /*
  * ACTIONS CALLBACKS
-*/
+ */
 
 static void connect_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
 	FileEditorConnect *connect;
@@ -45,7 +45,7 @@ static void quit_activated (GSimpleAction *action, GVariant *parameter, gpointer
 
 /*
  * ACTIONS ENTRIES
-*/
+ */
 
 static GActionEntry app_entries[] = {
 	{"connect", connect_activated, NULL, NULL, NULL},
@@ -57,7 +57,7 @@ static GActionEntry app_entries[] = {
 
 /*
  * OVERRIDEN METHODS
-*/
+ */
 
 static void file_editor_init(FileEditor *app) {
 

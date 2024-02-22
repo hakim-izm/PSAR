@@ -1,4 +1,4 @@
-# PSAR - Éditeur de texte - Client
+# PSAR - Éditeur de fichiers - Client
 
 Fichiers :
 

@@ -15,7 +15,7 @@ G_DEFINE_TYPE (FileEditorPrefs, file_editor_prefs, GTK_TYPE_DIALOG)
 
 /*
  * OVERRIDEN METHODS
-*/
+ */
 
 static void file_editor_prefs_init (FileEditorPrefs *prefs) {
 	gtk_widget_init_template(GTK_WIDGET(prefs));
