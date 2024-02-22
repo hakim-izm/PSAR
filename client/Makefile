@@ -5,7 +5,7 @@ LIBS = $(shell $(PKGCONFIG) --libs gtk4)
 GLIB_COMPILE_RESOURCES = $(shell $(PKGCONFIG) --variable=glib_compile_resources gio-2.0)
 GLIB_COMPILE_SCHEMAS = $(shell $(PKGCONFIG) --variable=glib_compile_schemas gio-2.0)
 
-SRC = fileeditorprefs.c fileeditorwin.c fileeditor.c main.c
+SRC = fileeditorconnect.c fileeditorprefs.c fileeditorwin.c fileeditor.c main.c
 BUILT_SRC = resources.c
 
 OBJS = $(BUILT_SRC:.c=.o) $(SRC:.c=.o)
@@ -18,7 +18,7 @@ com.psar.fileeditor.gschema.valid: com.psar.fileeditor.gschema.xml
 gschemas.compiled: com.psar.fileeditor.gschema.valid
 	$(GLIB_COMPILE_SCHEMAS) .
 
-resources.c: fileeditor.gresource.xml window.ui menu.ui prefs.ui
+resources.c: fileeditor.gresource.xml window.ui menu.ui prefs.ui connect.ui
 	$(GLIB_COMPILE_RESOURCES) fileeditor.gresource.xml --target=$@ --sourcedir=. --generate-source
 
 %.o: %.c

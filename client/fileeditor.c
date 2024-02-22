@@ -3,6 +3,7 @@
 #include "fileeditor.h"
 #include "fileeditorwin.h"
 #include "fileeditorprefs.h"
+#include "fileeditorconnect.h"
 
 struct _FileEditor {
 	GtkApplication parent;
@@ -15,6 +16,12 @@ G_DEFINE_TYPE(FileEditor, file_editor, GTK_TYPE_APPLICATION);
 */
 
 static void connect_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
+	FileEditorConnect *connect;
+	GtkWindow *win;
+
+	win = gtk_application_get_active_window(GTK_APPLICATION(app));
+	connect = file_editor_connect_new(FILE_EDITOR_WINDOW(win));
+	gtk_window_present(GTK_WINDOW(connect));
 }
 
 static void open_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {

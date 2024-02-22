@@ -57,8 +57,8 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file) {
 	gtk_widget_set_vexpand(scrolled, TRUE);
 	
 	view = gtk_text_view_new();
-	gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
-	gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(view), FALSE);
+	gtk_text_view_set_editable(GTK_TEXT_VIEW(view), TRUE);
+	gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(view), TRUE);
 	gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), view);
 	gtk_stack_add_titled(GTK_STACK (win->stack), scrolled, basename, basename);
 		

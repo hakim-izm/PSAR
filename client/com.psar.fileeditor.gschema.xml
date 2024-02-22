@@ -6,5 +6,15 @@
 			<summary>Font</summary>
 			<description>The font to be used for content.</description>
 		</key>
+		<key name="ip" type="s">
+			<default>'127.0.0.1'</default>
+			<summary>IP address</summary>
+			<description>The IP address of the server.</description>
+		</key>
+		<key name="port" type="s">
+			<default>'17300'</default>
+			<summary>Port</summary>
+			<description>The listening port of the server.</description>
+		</key>
 	</schema>
 </schemalist>
