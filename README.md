@@ -1,4 +1,4 @@
-# PSAR - Éditeur de texte
+# PSAR - Éditeur de fichiers
 
 ## Dépendances des include :
 
@@ -19,4 +19,6 @@
 /usr/include/pango-1.0
 /usr/include/harfbuzz
 /usr/include/gdk-pixbuf-2.0
+/usr/include/graphene-1.0
+/usr/lib/x86_64-linux-gnu/graphene-1.0/include
 ```
