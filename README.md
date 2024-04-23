@@ -8,6 +8,7 @@
 * pango 1.0
 * harfbuzz
 * gdk-pixbuf-2.0
+* libjson-c-dev
 
 ### Include path (pour ma machine) : 
 
