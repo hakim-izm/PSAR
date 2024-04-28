@@ -16,7 +16,7 @@
 						<property name="column-spacing">12</property>
 						<child>
 							<object class="GtkLabel" id="iplabel">
-								<property name="label">_IP address:</property>
+								<property name="label" translatable="yes">_IP address:</property>
 								<property name="use-underline">1</property>
 								<property name="mnemonic-widget">ip</property>
 								<property name="xalign">1</property>
@@ -37,7 +37,7 @@
 						</child>
 						<child>
 							<object class="GtkLabel" id="portlabel">
-								<property name="label">_Port:</property>
+								<property name="label" translatable="yes">_Port:</property>
 								<property name="use-underline">1</property>
 								<property name="mnemonic-widget">port</property>
 								<property name="xalign">1</property>
@@ -69,7 +69,7 @@
 						<property name="column-homogeneous">1</property>
 						<child>
 							<object class="GtkButton" id="okBtn">
-							<property name="label">OK</property>
+							<property name="label" translatable="yes">OK</property>
 								<layout>
 									<property name="column">1</property>
 									<property name="row">2</property>
@@ -78,7 +78,7 @@
 						</child>
 						<child>
 							<object class="GtkButton" id="cancelBtn">
-							<property name="label">Cancel</property>
+							<property name="label" translatable="yes">Cancel</property>
 								<layout>
 									<property name="column">0</property>
 									<property name="row">2</property>

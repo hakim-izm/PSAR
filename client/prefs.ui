@@ -16,7 +16,7 @@
 						<property name="column-spacing">12</property>
 						<child>
 							<object class="GtkLabel" id="fontlabel">
-								<property name="label">_Font:</property>
+								<property name="label" translatable="yes">_Font:</property>
 								<property name="use-underline">1</property>
 								<property name="mnemonic-widget">font</property>
 								<property name="xalign">1</property>
