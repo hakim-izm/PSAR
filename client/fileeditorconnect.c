@@ -17,6 +17,24 @@ struct _FileEditorConnect {
 G_DEFINE_TYPE (FileEditorConnect, file_editor_connect, GTK_TYPE_DIALOG)
 
 /*
+ * CALLBACKS
+ */
+
+void connect_action(FileEditorConnect *connect) {
+	
+	const char *ip_addr = gtk_editable_get_text(GTK_EDITABLE(GTK_ENTRY(connect->ip)));
+	const char *port = gtk_editable_get_text(GTK_EDITABLE(GTK_ENTRY(connect->port)));
+
+	char *ip = g_strdup_printf("%s:%s", ip_addr, port);
+
+	printf("[DEBUG] IP ADDRESS: %s\n", ip);
+
+	// TODO : connect to server
+
+	gtk_window_close(GTK_WINDOW(connect));
+}
+
+/*
  * OVERRIDEN METHODS
  */
 
@@ -31,15 +49,14 @@ static void file_editor_connect_init (FileEditorConnect *connect) {
 	g_settings_bind(connect->settings, "port",
 			connect->port, "text",
 			G_SETTINGS_BIND_DEFAULT);
+
+	g_signal_connect(connect->cancelBtn, "clicked", G_CALLBACK(gtk_window_close), connect);
+
+	g_signal_connect(connect->okBtn, "clicked", G_CALLBACK(connect_action), connect);
 }
 
 static void file_editor_connect_dispose (GObject *object) {
 	FileEditorConnect *connect;
-
-	const char *ip_addr = gtk_editable_get_text(GTK_EDITABLE(GTK_ENTRY(connect->ip)));
-	const char *port = gtk_editable_get_text(GTK_EDITABLE(GTK_ENTRY(connect->port)));
-
-	printf("[DEBUG] IP ADDRESS: %s:%s\n", ip_addr, port);
 
 	connect = FILE_EDITOR_CONNECT(object);
 
@@ -55,6 +72,10 @@ static void file_editor_connect_class_init(FileEditorConnectClass *class) {
 	gtk_widget_class_set_template_from_resource(GTK_WIDGET_CLASS(class), "/com/psar/fileeditor/connect.ui");
 	gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), FileEditorConnect, ip);
 	gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), FileEditorConnect, port);
+	gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), FileEditorConnect, cancelBtn);
+	gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), FileEditorConnect, okBtn);
+
+	
 }
 
 FileEditorConnect * file_editor_connect_new(FileEditorWindow *win) {
