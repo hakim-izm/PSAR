@@ -2,6 +2,7 @@
 
 #include "fileeditor.h"
 #include "fileeditorwin.h"
+#include "api/client.h"
 
 struct _FileEditorWindow
 {
@@ -16,11 +17,33 @@ struct _FileEditorWindow
 G_DEFINE_TYPE(FileEditorWindow, file_editor_window, GTK_TYPE_APPLICATION_WINDOW);
 
 /*
+ * GLOBAL VARIABLES
+ */
+
+File *file_struct;
+
+/*
+ * FUNCTIONS
+ */
+LineNode * get_line_node_from_text(char *text)
+{
+	LineNode *curr = file_struct->lines;
+	while(curr) {
+		if(strcmp(curr->line->text, text) == 0) {
+			return curr;
+		}
+		curr = curr->next;
+	}
+	return NULL;
+}
+
+/*
  * CALLBACKS
  */
 void row_selected(GtkListBox *listbox, GtkListBoxRow *row, FileEditorWindow *win)
 {
 	GtkLabel *lineSelectedLabel;
+	GtkWidget *textView;
 
 	lineSelectedLabel = GTK_LABEL(gtk_grid_get_child_at(GTK_GRID(win->grid), 0, 0));
 
@@ -32,6 +55,25 @@ void row_selected(GtkListBox *listbox, GtkListBoxRow *row, FileEditorWindow *win
 	}
 	else{
 		lineSelectedLabel = GTK_LABEL(gtk_label_new("No line selected"));
+	}
+
+	// test : get LineNode from text
+	textView = gtk_widget_get_first_child(GTK_WIDGET(row));
+
+	// un seul fils par row
+	if(GTK_IS_TEXT_VIEW(textView)) {
+		GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textView));
+		GtkTextIter start, end;
+		gtk_text_buffer_get_start_iter(buffer, &start);
+		gtk_text_buffer_get_end_iter(buffer, &end);
+		gchar *text = gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
+		LineNode *lineNode = get_line_node_from_text(text);
+		if(lineNode) {
+			g_print("Line found: %s\n", lineNode->line->text);
+		}
+		else {
+			g_print("Line not found\n");
+		}
 	}
 }
 
@@ -69,14 +111,16 @@ FileEditorWindow *file_editor_window_new(FileEditor *app)
 
 void file_editor_window_open(FileEditorWindow *win, GFile *file)
 {
-	char *basename;
+	char *filepath;
 	GtkWidget *scrolled;
 	GtkTextBuffer *buffer;
 	char *contents;
 	gsize length;
 	GtkTextTag *tag;
 
-	basename = g_file_get_basename(file);
+	filepath = g_file_get_path(file);
+
+	file_struct = open_local_file(filepath);
 
 	scrolled = gtk_scrolled_window_new();
 	gtk_widget_set_hexpand(scrolled, TRUE);
@@ -88,36 +132,34 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file)
 	gtk_list_box_set_selection_mode(GTK_LIST_BOX(listbox), GTK_SELECTION_SINGLE);
 	g_signal_connect(listbox, "row-selected", G_CALLBACK(row_selected), win);
 
-	if (g_file_load_contents(file, NULL, &contents, &length, NULL, NULL))
-	{
-		gchar **lines = g_strsplit(contents, "\n", -1);
-		gint num_lines = g_strv_length(lines);
-		for (int i = 0; i < num_lines; i++)
-		{
-			buffer = gtk_text_buffer_new(NULL);
-			gtk_text_buffer_set_text(buffer, lines[i], -1);
+	LineNode *curr = file_struct->lines;
 
-			tag = gtk_text_buffer_create_tag(buffer, NULL, NULL);
-			g_settings_bind(win->settings, "font", tag, "font", G_SETTINGS_BIND_DEFAULT);
+	while(curr) {
+		Line *line = curr->line;
 
-			GtkWidget *view = gtk_text_view_new_with_buffer(buffer);
-			gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
-			gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(view), FALSE);
+		buffer = gtk_text_buffer_new(NULL);
+		gtk_text_buffer_set_text(buffer, line->text, -1);
 
-			GtkWidget *row = gtk_list_box_row_new();
-			gtk_widget_set_hexpand(view, TRUE);
-			gtk_widget_set_vexpand(view, FALSE); // Only expand horizontally for each line
-			gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), view);
-			gtk_list_box_append(GTK_LIST_BOX(listbox), row);
+		tag = gtk_text_buffer_create_tag(buffer, NULL, NULL);
+		g_settings_bind(win->settings, "font", tag, "font", G_SETTINGS_BIND_DEFAULT);
 
-			g_object_unref(buffer);
-		}
-		g_strfreev(lines);
-		g_free(contents);
+		GtkWidget *view = gtk_text_view_new_with_buffer(buffer);
+		gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
+		gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(view), FALSE);
+
+		GtkWidget *row = gtk_list_box_row_new();
+		gtk_widget_set_hexpand(view, TRUE);
+		gtk_widget_set_vexpand(view, FALSE);
+		gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), view);
+		gtk_list_box_append(GTK_LIST_BOX(listbox), row);
+
+		g_object_unref(buffer);
+
+		curr = curr->next;
 	}
 
 	gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), listbox);
-	gtk_stack_add_titled(GTK_STACK(win->stack), scrolled, basename, basename);
+	gtk_stack_add_titled(GTK_STACK(win->stack), scrolled, file_struct->filename, file_struct->filename);
 
-	g_free(basename);
+	g_free(filepath);
 }
