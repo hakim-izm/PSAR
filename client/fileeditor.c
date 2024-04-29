@@ -24,7 +24,38 @@ static void connect_activated (GSimpleAction *action, GVariant *parameter, gpoin
 	gtk_window_present(GTK_WINDOW(connect));
 }
 
+static void open_response (GtkDialog *dialog, int response) {
+	if(response == GTK_RESPONSE_ACCEPT) {
+		GFile *file;
+		GtkFileChooser *chooser;
+		GtkWindow *win;
+
+		chooser = GTK_FILE_CHOOSER(dialog);
+		file = gtk_file_chooser_get_file(chooser);
+		win = gtk_window_get_transient_for(GTK_WINDOW(dialog));
+
+		file_editor_window_open(FILE_EDITOR_WINDOW(win), file);
+	}
+	gtk_window_destroy(GTK_WINDOW(dialog));
+}
+
 static void open_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
+	GtkWidget *chooser;
+	GtkWindow *win;
+
+	win = gtk_application_get_active_window(GTK_APPLICATION(app));
+
+	chooser = gtk_file_chooser_dialog_new("Open File",
+					     GTK_WINDOW(win),
+					     GTK_FILE_CHOOSER_ACTION_OPEN,
+					     "_Cancel", GTK_RESPONSE_CANCEL,
+					     "_Open", GTK_RESPONSE_ACCEPT,
+					     NULL);
+
+	gtk_window_present(GTK_WINDOW(chooser));
+
+	g_signal_connect(chooser, "response", G_CALLBACK(open_response), win);
+
 }
 
 static void save_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
