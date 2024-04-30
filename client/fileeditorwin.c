@@ -4,6 +4,8 @@
 #include "fileeditorwin.h"
 #include "api/client.h"
 
+#define MAX_FILES 8
+
 struct _FileEditorWindow
 {
 	GtkApplicationWindow parent;
@@ -20,12 +22,22 @@ G_DEFINE_TYPE(FileEditorWindow, file_editor_window, GTK_TYPE_APPLICATION_WINDOW)
  * GLOBAL VARIABLES
  */
 
-File *file_struct;
+File *open_files[MAX_FILES];
 
 /*
  * FUNCTIONS
  */
-LineNode * get_line_node_from_text(char *text)
+File * get_file_struct_from_filename(const char *filename)
+{
+	for(int i = 0; i < MAX_FILES; i++) {
+		if(open_files[i] && strcmp(open_files[i]->filename, filename) == 0) {
+			return open_files[i];
+		}
+	}
+	return NULL;
+}
+
+LineNode * get_line_node_from_text(File * file_struct, char *text)
 {
 	LineNode *curr = file_struct->lines;
 	while(curr) {
@@ -44,6 +56,8 @@ void row_selected(GtkListBox *listbox, GtkListBoxRow *row, FileEditorWindow *win
 {
 	GtkLabel *lineSelectedLabel;
 	GtkWidget *textView;
+
+	File *file_struct = get_file_struct_from_filename(gtk_stack_get_visible_child_name(GTK_STACK(win->stack)));
 
 	lineSelectedLabel = GTK_LABEL(gtk_grid_get_child_at(GTK_GRID(win->grid), 0, 0));
 
@@ -67,7 +81,7 @@ void row_selected(GtkListBox *listbox, GtkListBoxRow *row, FileEditorWindow *win
 		gtk_text_buffer_get_start_iter(buffer, &start);
 		gtk_text_buffer_get_end_iter(buffer, &end);
 		gchar *text = gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
-		LineNode *lineNode = get_line_node_from_text(text);
+		LineNode *lineNode = get_line_node_from_text(file_struct, text);
 		if(lineNode) {
 			g_print("Line found: %s\n", lineNode->line->text);
 		}
@@ -120,7 +134,24 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file)
 
 	filepath = g_file_get_path(file);
 
-	file_struct = open_local_file(filepath);
+	File *file_struct;
+
+	for(int i = 0; i < MAX_FILES; i++) {
+		if(!open_files[i]) {
+			file_struct = open_files[i] = open_local_file(filepath);
+			break;
+		}
+
+		if(i == MAX_FILES - 1) {
+			// dialog error
+			GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(win), GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE, "Too many files opened");
+			
+			gtk_window_present(GTK_WINDOW(dialog));
+
+			g_free(filepath);
+			return;
+		}
+	}
 
 	scrolled = gtk_scrolled_window_new();
 	gtk_widget_set_hexpand(scrolled, TRUE);
@@ -130,6 +161,7 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file)
 
 	GtkWidget *listbox = gtk_list_box_new();
 	gtk_list_box_set_selection_mode(GTK_LIST_BOX(listbox), GTK_SELECTION_SINGLE);
+	// g_signal_connect(listbox, "row-selected", G_CALLBACK(row_selected), win);
 	g_signal_connect(listbox, "row-selected", G_CALLBACK(row_selected), win);
 
 	LineNode *curr = file_struct->lines;
