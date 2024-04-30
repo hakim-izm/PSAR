@@ -1,3 +1,10 @@
+#pragma once
+
+#define MAX_FILENAME_LENGTH 	256 // Longueur maximale d'un nom de fichier (safe)
+#define MAX_LINE_LENGTH 	1024 // Longueur maximale d'une ligne (safe)
+#define ADD_APPEND 		0 // Mode d'ajout de ligne : ajout à la fin
+#define ADD_INSERT 		1 // Mode d'ajout de ligne : insertion
+
 // Structure d'un client
 typedef struct Client {
     int uid;            // ID du client
@@ -47,7 +54,7 @@ typedef struct FileNode {
 // receive_response_from_server() // Reçoit une réponse du serveur.
 // send_request_to_client() // Envoie une demande à un client.
 // receive_response_from_client() // Reçoit une réponse d'un client.
-void add_line(LineNode *lines, Line *line); // Ajouter une ligne.
+void add_line(LineNode *lines, Line *line, int mode); // Ajouter une ligne.
 // remove_line() // Supprimer une ligne.
 // edit_line() // Modifier une ligne.
 // create_file() // Créer un fichier.

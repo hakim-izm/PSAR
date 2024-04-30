@@ -4,12 +4,12 @@
 #include <string.h>
 #include "client.h"
 
-#define MAX_FILENAME_LENGTH 256 // Longueur maximale d'un nom de fichier (safe)
-#define MAX_LINE_LENGTH 1024 // Longueur maximale d'une ligne (safe)
-
-void add_line(LineNode *lines, Line *line) {
+void add_line(LineNode *lines, Line *line, int mode) {
 	LineNode *curr = lines;
-	while(curr->next) {
+	
+	// si mode = ADD_APPEND, on ajoute la ligne à la fin du fichier
+	// si mode = ADD_INSERT, on ajoute la ligne après la ligne courante
+	while(curr->next && mode == ADD_APPEND) {
 		curr = curr->next;
 	}
 
@@ -68,11 +68,9 @@ File * open_local_file(char *filepath) {
 			fprintf(stderr, "CLIENT API: malloc error for new line, file=\"%s\" (open_local_file())\n", filepath);
 			fclose(fp);
 			
-			LineNode *curr = lines->next;
+			LineNode *curr = lines;
 			while(curr) {
 				LineNode *next = curr->next;
-				free(curr->line->text);
-				free(curr->line);
 				free(curr);
 				curr = next;
 			}
@@ -89,7 +87,7 @@ File * open_local_file(char *filepath) {
 		if(!curr_line) {
 			lines->line = new_line;
 		} else {
-			add_line(lines, new_line);
+			add_line(lines, new_line, ADD_APPEND);
 		}
 
 		curr_line = new_line;
