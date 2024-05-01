@@ -16,6 +16,10 @@
 				<attribute name="label" translatable="yes">_Save</attribute>
 				<attribute name="action">app.save</attribute>
 			</item>
+			<item>
+				<attribute name="label" translatable="yes">Save _As</attribute>
+				<attribute name="action">app.save_as</attribute>
+			</item>
 		</section>
 		<section>
 			<item>

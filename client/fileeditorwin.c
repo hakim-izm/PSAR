@@ -6,15 +6,7 @@
 
 #define MAX_FILES 8
 
-struct _FileEditorWindow
-{
-	GtkApplicationWindow parent;
 
-	GSettings *settings;
-	GtkWidget *appmenu;
-	GtkWidget *stack;
-	GtkWidget *grid;
-};
 
 G_DEFINE_TYPE(FileEditorWindow, file_editor_window, GTK_TYPE_APPLICATION_WINDOW);
 
@@ -23,72 +15,145 @@ G_DEFINE_TYPE(FileEditorWindow, file_editor_window, GTK_TYPE_APPLICATION_WINDOW)
  */
 
 File *open_files[MAX_FILES];
+GtkListBox *listboxes[MAX_FILES];
+Line *selected_line;
 
 /*
  * FUNCTIONS
  */
-File * get_file_struct_from_filename(const char *filename)
-{
-	for(int i = 0; i < MAX_FILES; i++) {
-		if(open_files[i] && strcmp(open_files[i]->filename, filename) == 0) {
-			return open_files[i];
-		}
+
+void save_file_call(File * file, const char * filepath) {
+	printf("save_file_call\n");
+	if(!file) {
+		fprintf(stderr, "CLIENT API: No save to file (save_file_call())\n");
+		return;
 	}
-	return NULL;
+
+	const char *path = filepath ? filepath : file->filename;
+
+	save_file(file, path);
 }
 
-LineNode * get_line_node_from_text(File * file_struct, char *text)
+void empty_listbox(GtkListBox *listbox)
 {
+	GtkWidget *child;
+
+	while ((child = gtk_widget_get_first_child(GTK_WIDGET (listbox))))
+		gtk_list_box_remove(listbox, child);
+}
+
+void fill_listbox(GtkListBox *listbox, File *file_struct)
+{
+	GtkTextBuffer *buffer;
+	GtkTextTag *tag;
+	FileEditorWindow *win = FILE_EDITOR_WINDOW(gtk_widget_get_ancestor(GTK_WIDGET(listbox), FILE_EDITOR_WINDOW_TYPE));
+
 	LineNode *curr = file_struct->lines;
+
 	while(curr) {
-		if(strcmp(curr->line->text, text) == 0) {
-			return curr;
-		}
+		Line *line = curr->line;
+
+		buffer = gtk_text_buffer_new(NULL);
+		gtk_text_buffer_set_text(buffer, line->text, -1);
+
+		tag = gtk_text_buffer_create_tag(buffer, NULL, NULL);
+		g_settings_bind(win->settings, "font", tag, "font", G_SETTINGS_BIND_DEFAULT);
+
+		GtkWidget *view = gtk_text_view_new_with_buffer(buffer);
+		gtk_text_view_set_editable(GTK_TEXT_VIEW(view), FALSE);
+		gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(view), FALSE);
+
+		GtkWidget *row = gtk_list_box_row_new();
+		gtk_widget_set_hexpand(view, TRUE);
+		gtk_widget_set_vexpand(view, FALSE);
+		gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), view);
+
+		g_object_unref(buffer);
+
+		// Associate line_node with row
+
+		gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), TRUE);
+		gtk_list_box_row_set_selectable(GTK_LIST_BOX_ROW(row), TRUE);
+		g_object_set_data(G_OBJECT(row), "line_node", curr);
+
+		gtk_list_box_insert(GTK_LIST_BOX(listbox), row, -1);
+
+
 		curr = curr->next;
 	}
-	return NULL;
 }
 
 /*
  * CALLBACKS
  */
-void row_selected(GtkListBox *listbox, GtkListBoxRow *row, FileEditorWindow *win)
+void on_row_selected(GtkListBox *listbox, GtkListBoxRow *row, FileEditorWindow *win)
 {
 	GtkLabel *lineSelectedLabel;
 	GtkWidget *textView;
 
-	File *file_struct = get_file_struct_from_filename(gtk_stack_get_visible_child_name(GTK_STACK(win->stack)));
+	GtkWidget *stack = win->stack;
+	GtkWidget *visible_child = gtk_stack_get_visible_child(GTK_STACK(stack));
+	File *file_struct = g_object_get_data(G_OBJECT(visible_child), "file_struct");
+
 
 	lineSelectedLabel = GTK_LABEL(gtk_grid_get_child_at(GTK_GRID(win->grid), 0, 0));
 
-	if(row){
-		int index = gtk_list_box_row_get_index(row);
-		char *label_text = g_strdup_printf("Line selected: %d", index);
-		gtk_label_set_text(lineSelectedLabel, label_text);
-		g_free(label_text);
-	}
-	else{
-		lineSelectedLabel = GTK_LABEL(gtk_label_new("No line selected"));
-	}
-
-	// test : get LineNode from text
-	textView = gtk_widget_get_first_child(GTK_WIDGET(row));
-
-	// un seul fils par row
-	if(GTK_IS_TEXT_VIEW(textView)) {
-		GtkTextBuffer *buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW(textView));
-		GtkTextIter start, end;
-		gtk_text_buffer_get_start_iter(buffer, &start);
-		gtk_text_buffer_get_end_iter(buffer, &end);
-		gchar *text = gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
-		LineNode *lineNode = get_line_node_from_text(file_struct, text);
+	if(row) {
+		LineNode *lineNode = g_object_get_data(G_OBJECT(row), "line_node");
 		if(lineNode) {
 			g_print("Line found: %s\n", lineNode->line->text);
-		}
-		else {
+			selected_line = lineNode->line;
+			char *label_text = g_strdup_printf("Line selected: %d", lineNode->line->id);
+			gtk_label_set_text(lineSelectedLabel, label_text);
+			g_free(label_text);
+		} else {
+			lineSelectedLabel = GTK_LABEL(gtk_label_new("No line selected"));
 			g_print("Line not found\n");
 		}
+	
+	} else {
+		lineSelectedLabel = GTK_LABEL(gtk_label_new("No line selected"));
 	}
+}
+
+void on_delete_clicked(GtkButton *button, FileEditorWindow *win)
+{
+	GtkWidget *stack = win->stack;
+	GtkWidget *visible_child = gtk_stack_get_visible_child(GTK_STACK(stack));
+	File *file_struct = g_object_get_data(G_OBJECT(visible_child), "file_struct");
+
+	if(!selected_line) {
+		// dialog error
+		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(win), GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE, "No line selected");
+		
+		gtk_window_present(GTK_WINDOW(dialog));
+
+		return;
+	}
+
+	remove_line(file_struct, selected_line);
+
+	int i;
+	for(i = 0; i < MAX_FILES; i++) {
+		if(open_files[i] == file_struct) {
+			break;
+		}
+	}
+
+	if(i == MAX_FILES) {
+		// dialog error
+		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(win), GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE, "File not found");
+		
+		gtk_window_present(GTK_WINDOW(dialog));
+
+		return;
+	}
+
+	GtkListBox *listbox = listboxes[i];
+
+	empty_listbox(listbox);
+	fill_listbox(listbox, file_struct);
+
 }
 
 /*
@@ -131,12 +196,31 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file)
 	char *contents;
 	gsize length;
 	GtkTextTag *tag;
+	GtkButton *add_btn, *edit_btn, *delete_btn;
+
+	// BUTTONS
+
+	add_btn = GTK_BUTTON(gtk_grid_get_child_at(GTK_GRID(win->grid), 1, 0));
+	edit_btn = GTK_BUTTON(gtk_grid_get_child_at(GTK_GRID(win->grid), 2, 0));
+	delete_btn = GTK_BUTTON(gtk_grid_get_child_at(GTK_GRID(win->grid), 3, 0));
+
+	gtk_widget_set_visible(GTK_WIDGET(add_btn), TRUE);
+	gtk_widget_set_visible(GTK_WIDGET(edit_btn), TRUE);
+	gtk_widget_set_visible(GTK_WIDGET(delete_btn), TRUE);
+
+	// g_signal_connect(add_btn, "clicked", G_CALLBACK(on_add_clicked), win);
+	// g_signal_connect(edit_btn, "clicked", G_CALLBACK(on_edit_clicked), win);
+	g_signal_connect(delete_btn, "clicked", G_CALLBACK(on_delete_clicked), win);
+
+	// FILE
 
 	filepath = g_file_get_path(file);
 
 	File *file_struct;
 
-	for(int i = 0; i < MAX_FILES; i++) {
+	int i;
+
+	for(i = 0; i < MAX_FILES; i++) {
 		if(!open_files[i]) {
 			file_struct = open_files[i] = open_local_file(filepath);
 			break;
@@ -153,6 +237,8 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file)
 		}
 	}
 
+	// LISTBOX STUFF
+
 	scrolled = gtk_scrolled_window_new();
 	gtk_widget_set_hexpand(scrolled, TRUE);
 	gtk_widget_set_vexpand(scrolled, TRUE);
@@ -161,8 +247,8 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file)
 
 	GtkWidget *listbox = gtk_list_box_new();
 	gtk_list_box_set_selection_mode(GTK_LIST_BOX(listbox), GTK_SELECTION_SINGLE);
-	// g_signal_connect(listbox, "row-selected", G_CALLBACK(row_selected), win);
-	g_signal_connect(listbox, "row-selected", G_CALLBACK(row_selected), win);
+	g_signal_connect(listbox, "row-selected", G_CALLBACK(on_row_selected), win);
+	listboxes[i] = GTK_LIST_BOX(listbox);
 
 	LineNode *curr = file_struct->lines;
 
@@ -183,15 +269,26 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file)
 		gtk_widget_set_hexpand(view, TRUE);
 		gtk_widget_set_vexpand(view, FALSE);
 		gtk_list_box_row_set_child(GTK_LIST_BOX_ROW(row), view);
-		gtk_list_box_append(GTK_LIST_BOX(listbox), row);
 
 		g_object_unref(buffer);
+
+		// Associate line_node with row
+
+		gtk_list_box_row_set_activatable(GTK_LIST_BOX_ROW(row), TRUE);
+		gtk_list_box_row_set_selectable(GTK_LIST_BOX_ROW(row), TRUE);
+		g_object_set_data(G_OBJECT(row), "line_node", curr);
+
+		gtk_list_box_insert(GTK_LIST_BOX(listbox), row, -1);
+
 
 		curr = curr->next;
 	}
 
 	gtk_scrolled_window_set_child(GTK_SCROLLED_WINDOW(scrolled), listbox);
 	gtk_stack_add_titled(GTK_STACK(win->stack), scrolled, file_struct->filename, file_struct->filename);
+
+	// associate file_struct with stack child
+	g_object_set_data(G_OBJECT(scrolled), "file_struct", file_struct);
 
 	g_free(filepath);
 }

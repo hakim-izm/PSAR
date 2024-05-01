@@ -4,6 +4,7 @@
 #include "fileeditorwin.h"
 #include "fileeditorprefs.h"
 #include "fileeditorconnect.h"
+#include "api/client.h"
 
 struct _FileEditor {
 	GtkApplication parent;
@@ -59,6 +60,60 @@ static void open_activated (GSimpleAction *action, GVariant *parameter, gpointer
 }
 
 static void save_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
+	FileEditorWindow *win;
+
+	win = FILE_EDITOR_WINDOW(gtk_application_get_active_window(GTK_APPLICATION(app)));
+
+	GtkWidget *stack = win->stack;
+	GtkWidget *visible_child = gtk_stack_get_visible_child(GTK_STACK(stack));
+	File *file_struct = g_object_get_data(G_OBJECT(visible_child), "file-struct");
+
+	save_file_call(file_struct, NULL);
+}
+
+static void save_as_response (GtkDialog *dialog, int response) {
+	if(response == GTK_RESPONSE_ACCEPT) {
+		printf("save_as_response - response accept\n");
+		GFile *file;
+		GtkFileChooser *chooser;
+		GtkWindow *win;
+
+		chooser = GTK_FILE_CHOOSER(dialog);
+		file = gtk_file_chooser_get_file(chooser);
+		win = gtk_window_get_transient_for(GTK_WINDOW(dialog));
+
+		FileEditorWindow *file_editor_win = FILE_EDITOR_WINDOW(win);
+		GtkWidget *stack = file_editor_win->stack;
+		GtkWidget *visible_child = gtk_stack_get_visible_child(GTK_STACK(stack));
+		File *file_struct = g_object_get_data(G_OBJECT(visible_child), "file_struct");
+
+		char *path = g_file_get_path(file);
+		printf("before save_file_call\n");
+		save_file_call(file_struct, path);
+		printf("after save_file_call\n");
+		g_free(path);
+	}
+	gtk_window_destroy(GTK_WINDOW(dialog));
+}
+
+static void save_as_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
+	GtkFileChooser *chooser;
+
+	GtkWindow *win;
+
+	win = gtk_application_get_active_window(GTK_APPLICATION(app));
+
+	chooser = GTK_FILE_CHOOSER(gtk_file_chooser_dialog_new("Save File As",
+							       win,
+							       GTK_FILE_CHOOSER_ACTION_SAVE,
+							       "_Cancel", GTK_RESPONSE_CANCEL,
+							       "_Save", GTK_RESPONSE_ACCEPT,
+							       NULL));
+
+	gtk_window_present(GTK_WINDOW(chooser));
+
+	g_signal_connect(chooser, "response", G_CALLBACK(save_as_response), win);
+
 }
 
 static void preferences_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
@@ -82,6 +137,7 @@ static GActionEntry app_entries[] = {
 	{"connect", connect_activated, NULL, NULL, NULL},
 	{"open", open_activated, NULL, NULL, NULL},
 	{"save", save_activated, NULL, NULL, NULL},
+	{"save_as", save_as_activated, NULL, NULL, NULL},
 	{"preferences", preferences_activated, NULL, NULL, NULL},
 	{"quit", quit_activated, NULL, NULL, NULL}
 };
@@ -121,6 +177,7 @@ static void file_editor_startup(GApplication *app) {
 	const char *connect_accels[2] = {"<Ctrl>K", NULL};
 	const char *open_accels[2] = {"<Ctrl>O", NULL};
 	const char *save_accels[2] = {"<Ctrl>S", NULL};
+	const char *save_as_accels[2] = {"<Ctrl><Alt>S", NULL};
 	const char *preferences_accels[2] = {"<Ctrl>I", NULL};
 	const char *quit_accels[2] = {"<Ctrl>Q", NULL};
 
@@ -141,6 +198,10 @@ static void file_editor_startup(GApplication *app) {
 	gtk_application_set_accels_for_action(GTK_APPLICATION(app),
 							      "app.save",
 							      save_accels);
+	
+	gtk_application_set_accels_for_action(GTK_APPLICATION(app),
+							      "app.save_as",
+							      save_as_accels);
 
 	gtk_application_set_accels_for_action(GTK_APPLICATION(app),
 							      "app.preferences",
