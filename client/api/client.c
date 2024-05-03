@@ -91,14 +91,6 @@ File * open_local_file(char *filepath) {
 		return NULL;
 	}
 
-	// Init structs : LineNode et File
-	// LineNode *lines = (LineNode *)malloc(sizeof(LineNode));
-	
-	// lines->line = NULL;
-	// lines->next = NULL;
-
-	// LineNode * lines = NULL;
-
 	File *file_struct = (File *)malloc(sizeof(File));
 
 	file_struct->filename = (char *)malloc(MAX_FILENAME_LENGTH);	
@@ -114,41 +106,17 @@ File * open_local_file(char *filepath) {
 
 	// Parsing du fichier (ligne par ligne)
 	char line_buffer[MAX_LINE_LENGTH];
-	// int line_id = 0;
+
 	while(fgets(line_buffer, MAX_LINE_LENGTH, fp)) {
 		// Suppression retour à la ligne le cas échéant (remplacement '\n' par '\0')
 		char *newline = strchr(line_buffer, '\n');
 		if(newline)
 			*newline = '\0';
-
-		printf("line_buffer: %s\n", line_buffer);
 		
-		// Malloc pour nouvelle ligne
 		Line *new_line;
-		// if(!new_line){ // échec malloc -> libération ressources allouées
-		// 	fprintf(stderr, "CLIENT API: malloc error for new line, file=\"%s\" (open_local_file())\n", filepath);
-		// 	fclose(fp);
-			
-		// 	LineNode *curr = lines;
-		// 	while(curr) {
-		// 		LineNode *next = curr->next;
-		// 		free(curr);
-		// 		curr = next;
-		// 	}
-
-		// 	return NULL;
-		// }
-
-		// Init de la nouvelle ligne
-		// new_line->next = NULL;
 
 		// Insertion de la nouvelle ligne
 		if(!curr_line) {
-			// new_line = (Line *)malloc(sizeof(Line));
-			// new_line->text = strdup(line_buffer); // allocation mémoire !
-			// new_line->id = file_struct->line_count;
-			// lines->line = new_line;
-			// file_struct->line_count++;
 			add_line(file_struct, NULL, line_buffer, ADD_INSERT);
 			new_line = file_struct->lines->line;
 		} else {
@@ -157,8 +125,6 @@ File * open_local_file(char *filepath) {
 		}
 
 		curr_line = new_line;
-		// line_id++;
-		// file_struct->line_count++;
 	}
 
 	fclose(fp);

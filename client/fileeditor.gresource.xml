@@ -3,7 +3,6 @@
 	<gresource prefix="/com/psar/fileeditor">
 		<file preprocess="xml-stripblanks">window.ui</file>
 		<file preprocess="xml-stripblanks">menu.ui</file>
-		<file preprocess="xml-stripblanks">prefs.ui</file>
 		<file preprocess="xml-stripblanks">connect.ui</file>
 	</gresource>
 </gresources>

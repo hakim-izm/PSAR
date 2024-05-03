@@ -2,7 +2,6 @@
 
 #include "fileeditor.h"
 #include "fileeditorwin.h"
-#include "fileeditorprefs.h"
 #include "fileeditorconnect.h"
 #include "api/client.h"
 
@@ -66,9 +65,9 @@ static void save_activated (GSimpleAction *action, GVariant *parameter, gpointer
 
 	GtkWidget *stack = win->stack;
 	GtkWidget *visible_child = gtk_stack_get_visible_child(GTK_STACK(stack));
-	File *file_struct = g_object_get_data(G_OBJECT(visible_child), "file-struct");
+	File *file_struct = g_object_get_data(G_OBJECT(visible_child), "file_struct");
 
-	save_file_call(file_struct, NULL);
+	save_file_call(file_struct, NULL, win);
 }
 
 static void save_as_response (GtkDialog *dialog, int response) {
@@ -89,7 +88,7 @@ static void save_as_response (GtkDialog *dialog, int response) {
 
 		char *path = g_file_get_path(file);
 		printf("before save_file_call\n");
-		save_file_call(file_struct, path);
+		save_file_call(file_struct, path, file_editor_win);
 		printf("after save_file_call\n");
 		g_free(path);
 	}
@@ -116,16 +115,45 @@ static void save_as_activated (GSimpleAction *action, GVariant *parameter, gpoin
 
 }
 
-static void preferences_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
-	FileEditorPrefs *prefs;
-	GtkWindow *win;
+static void quit_save_response (GtkDialog *dialog, int response, FileEditorWindow *win) {
+	if(response == GTK_RESPONSE_YES) {
+		GtkWidget *stack = win->stack;
+		GtkWidget *visible_child = gtk_stack_get_visible_child(GTK_STACK(stack));
+		File *file_struct = g_object_get_data(G_OBJECT(visible_child), "file_struct");
 
-	win = gtk_application_get_active_window(GTK_APPLICATION(app));
-	prefs = file_editor_prefs_new(FILE_EDITOR_WINDOW(win));
-	gtk_window_present(GTK_WINDOW(prefs));
+		save_file_call(file_struct, NULL, win);
+	}
+	gtk_window_close(GTK_WINDOW(win));
+	gtk_window_destroy(GTK_WINDOW(dialog));
 }
 
 static void quit_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
+	// Close all FileEditorWindow
+	GList *windows;
+	windows = gtk_application_get_windows(GTK_APPLICATION(app));
+	while(windows) {
+		FileEditorWindow *win = FILE_EDITOR_WINDOW(windows->data);
+		if(win->dirty){
+			GtkWidget *dialog;
+			dialog = gtk_message_dialog_new(GTK_WINDOW(windows->data),
+						       GTK_DIALOG_MODAL,
+						       GTK_MESSAGE_QUESTION,
+						       GTK_BUTTONS_YES_NO,
+						       "Do you want to save the changes?");
+			gtk_window_set_title(GTK_WINDOW(dialog), "Save Changes");
+			gtk_window_present(GTK_WINDOW(dialog));
+
+			g_signal_connect(dialog, "response", G_CALLBACK(quit_save_response), win);
+
+			return;
+		}
+
+		gtk_window_close(GTK_WINDOW(windows->data));
+		windows = windows->next;
+	}
+
+	printf("bye\n");
+
 	g_application_quit (G_APPLICATION (app));
 }
 
@@ -138,7 +166,6 @@ static GActionEntry app_entries[] = {
 	{"open", open_activated, NULL, NULL, NULL},
 	{"save", save_activated, NULL, NULL, NULL},
 	{"save_as", save_as_activated, NULL, NULL, NULL},
-	{"preferences", preferences_activated, NULL, NULL, NULL},
 	{"quit", quit_activated, NULL, NULL, NULL}
 };
 
@@ -178,7 +205,6 @@ static void file_editor_startup(GApplication *app) {
 	const char *open_accels[2] = {"<Ctrl>O", NULL};
 	const char *save_accels[2] = {"<Ctrl>S", NULL};
 	const char *save_as_accels[2] = {"<Ctrl><Alt>S", NULL};
-	const char *preferences_accels[2] = {"<Ctrl>I", NULL};
 	const char *quit_accels[2] = {"<Ctrl>Q", NULL};
 
 	G_APPLICATION_CLASS (file_editor_parent_class)->startup(app);
@@ -204,12 +230,11 @@ static void file_editor_startup(GApplication *app) {
 							      save_as_accels);
 
 	gtk_application_set_accels_for_action(GTK_APPLICATION(app),
-							      "app.preferences",
-							      preferences_accels);
-
-	gtk_application_set_accels_for_action(GTK_APPLICATION(app),
 							      "app.quit",
 							      quit_accels);
+	
+
+	g_signal_connect(GTK_APPLICATION(app), "delete-event", G_CALLBACK(quit_activated), NULL);
 }
 
 static void file_editor_class_init(FileEditorClass *class) {

@@ -14,14 +14,16 @@ struct _FileEditorWindow
 	GSettings *settings;
 	GtkWidget *appmenu;
 	GtkWidget *stack;
-	GtkWidget *grid;
+	GtkWidget *main_mode_grid;
+	GtkWidget *edition_grid;
+	gboolean dirty;
 };
 
 File * get_file_struct_from_filename(const char *filename);
 
 LineNode * get_line_node_from_text(File * file_struct, char *text);
 
-void save_file_call(File * file, const char * filepath);
+void save_file_call(File * file, const char * filepath, FileEditorWindow *win);
 
 FileEditorWindow *file_editor_window_new (FileEditor *app);
 
