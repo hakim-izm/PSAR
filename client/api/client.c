@@ -4,7 +4,7 @@
 #include <string.h>
 #include "client.h"
 
-void add_line(File *file, LineNode *lines, const char *text, int mode) {
+void local_add_line(File *file, LineNode *lines, const char *text, int mode) {
 	// si mode = ADD_APPEND, on ajoute la ligne à la fin du fichier
 	// si mode = ADD_INSERT, on ajoute la ligne après la ligne courante (curr)
 	// si lines = NULL et mode = ADD_INSERT, on ajoute la ligne au début du fichier
@@ -48,7 +48,7 @@ void add_line(File *file, LineNode *lines, const char *text, int mode) {
 
 }
 
-void remove_line(File *file, Line *line) {
+void local_remove_line(File *file, Line *line) {
 	LineNode *curr = file->lines;
 	LineNode *prev = NULL;
 
@@ -76,14 +76,14 @@ void remove_line(File *file, Line *line) {
 	// ici : aucune ligne supprimée
 }
 
-void edit_line(Line *line, char *text) {
+void local_edit_line(Line *line, char *text) {
 	free(line->text);
 	line->text = strdup(text);
 
 	// TODO : envoi
 }
 
-File * open_local_file(char *filepath) {
+File * local_open_local_file(char *filepath) {
 	FILE *fp = fopen(filepath, "r"); // read only
 	
 	if(!fp) {
@@ -134,7 +134,7 @@ File * open_local_file(char *filepath) {
 	return file_struct;
 }
 
-void save_file(File * file, const char * filepath) {
+void local_save_file(File * file, const char * filepath) {
 	FILE *fp = fopen(filepath, "w"); // write only
 
 	if(!fp) {
@@ -153,7 +153,7 @@ void save_file(File * file, const char * filepath) {
 	// TODO : envoi
 }
 
-void close_file(File * file) {
+void local_close_file(File * file) {
 	LineNode *curr = file->lines;
 	while(curr) {
 		LineNode *next = curr->next;

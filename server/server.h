@@ -75,3 +75,4 @@ void open_external_file(int client_socket, json_object *object); // Ouverture d'
 void close_file(int client_socket, json_object *object); // Fermeture d'un fichier.
 void lock_line(int client_socket, json_object *object); // Verrouille une ligne.
 void unlock_line(int client_socket, json_object *object); // Deverrouille une ligne.
+void delete_line(int client_socket, json_object *object); // Supprime une ligne.

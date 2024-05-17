@@ -54,12 +54,12 @@ typedef struct FileNode {
 // receive_response_from_server() // Reçoit une réponse du serveur.
 // send_request_to_client() // Envoie une demande à un client.
 // receive_response_from_client() // Reçoit une réponse d'un client.
-void add_line(File *file, LineNode *lines, const char *text, int mode); // Ajouter une ligne.
-void remove_line(File *file, Line *line); // Supprimer une ligne.
-void edit_line(Line *line, char *text); // Modifier une ligne.
+void local_add_line(File *file, LineNode *lines, const char *text, int mode); // Ajouter une ligne.
+void local_remove_line(File *file, Line *line); // Supprimer une ligne.
+void local_edit_line(Line *line, char *text); // Modifier une ligne.
 // create_file() // Créer un fichier.
-File * open_local_file(char *filepath); // Ouvrir un fichier local.
+File * local_open_local_file(char *filepath); // Ouvrir un fichier local.
 // open_external_file() // Ouvrir un fichier distant.
-void save_file(File * file, const char * filepath); // Sauvegarder un fichier.
-void close_file(File * file); // Fermer un fichier.
+void local_save_file(File * file, const char * filepath); // Sauvegarder un fichier.
+void local_close_file(File * file); // Fermer un fichier.
 // quit() // Quitter l'éditeur.

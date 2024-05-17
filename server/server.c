@@ -24,6 +24,7 @@ void initialize_server() {
         exit(EXIT_FAILURE);
     }
 
+    // Initialisation de la session du serveur
     session = (ServerSession *)malloc(sizeof(ServerSession));
     if (session == NULL) {
         perror("Memory allocation failed");
@@ -42,7 +43,7 @@ void initialize_server() {
     session->locked_lines = NULL;
     session->locked_line_count = 0;
 
-    int server_fd, new_socket;
+    int server_fd;
     struct sockaddr_in address;
     int addrlen = sizeof(address);
 
@@ -72,18 +73,18 @@ void initialize_server() {
     printf("Server initialized and listening on port %d\n", PORT);
 
     while (1) {
-        printf("Attente Connexion ... \n");
+        printf("Waiting Connection ... \n");
         int new_socket;
-        struct sockaddr_in address;
-        int addrlen = sizeof(address);
+        struct sockaddr_in new_address;
+        int addrlen = sizeof(new_address);
 
         // Acceptation de la connexion entrante
-        if ((new_socket = accept(server_fd, (struct sockaddr *)&address, (socklen_t*)&addrlen)) < 0) {
+        if ((new_socket = accept(server_fd, (struct sockaddr *)&new_address, (socklen_t*)&addrlen)) < 0) {
             perror("Accept failed");
             exit(EXIT_FAILURE);
         }
 
-         pthread_t client_thread;
+        pthread_t client_thread;
         if (pthread_create(&client_thread, NULL, receive_request_from_client, &new_socket) != 0) {
             perror("Thread creation failed");
             close(new_socket);
@@ -93,6 +94,8 @@ void initialize_server() {
         // Détachement du thread
         pthread_detach(client_thread);
     }
+
+    close(server_fd);
 }
 
 void *receive_request_from_client(void *args) {
@@ -155,6 +158,11 @@ void *receive_request_from_client(void *args) {
                 printf("Deverrouille une ligne\n");
                 unlock_line(client_socket, json_obj);
                 break;
+            case 8:
+                // Suppression d'une ligne
+                printf("Suppression une ligne\n");
+                delete_line(client_socket, json_obj);
+                break;    
             default:
                 // Code de requête invalide
                 break;
@@ -173,6 +181,7 @@ void connexion(int client_socket, json_object *object){
     Client *new_client = (Client *)malloc(sizeof(Client));
     if (new_client == NULL) {
         perror("Error allocating memory for new client");
+        // Envoi d'un message d'échoue au client
         if (write(client_socket, "Failed Connexion", sizeof("Failed Connexion")) == -1) {
             perror("Error sending failed message to client");
         }
@@ -201,6 +210,8 @@ void connexion(int client_socket, json_object *object){
     if (new_node == NULL) {
         perror("Error allocating memory for new client node");
         free(new_client); // Libérer la mémoire allouée pour le client
+
+        // Envoi d'un message d'échoue au client
         if (write(client_socket, "Failed Connexion", sizeof("Failed Connexion")) == -1) {
             perror("Error sending failed message to client");
         }
@@ -225,7 +236,6 @@ void connexion(int client_socket, json_object *object){
     if (write(client_socket, "Success Connexion", sizeof("Success Connexion")) == -1) {
         perror("Error sending success message to client");
     }
-
 }
 
 
@@ -256,6 +266,7 @@ void deconnexion(int client_socket, json_object *object){
 
     if (current == NULL) {
         perror("Client not found\n");
+        // Envoi d'un message d'échoue au client
         if (write(client_socket, "Failed Deconnexion", sizeof("Failed Deconnexion")) == -1) {
             perror("Error sending failed message to client");
         }
@@ -395,7 +406,7 @@ void open_local_file(int client_socket, json_object *object){
 
     // Envoi d'un message de succès au client
     char response[1024];
-    snprintf(response, sizeof(response), "Success Open Local File, %s", filename);                
+    snprintf(response, sizeof(response), "Success Open Local File %s", filename);                
     if (write(client_socket, response, sizeof(response)) == -1) {
         perror("Error sending success message to client");
     }
@@ -412,7 +423,7 @@ void open_external_file(int client_socket, json_object *object) {
     // Extrait le nom du fichier à partir du token
     char *filename;
 
-    // Initialisation de la variable pour stocker la valeur extraite+
+    // Initialisation de la variable pour stocker la valeur extraite
     json_object *filename_obj = NULL;
 
     // Lecture des données du client depuis le token
@@ -446,11 +457,25 @@ void open_external_file(int client_socket, json_object *object) {
                     // Le client hôte a été trouvé
                     
                     // Envoi de l'adresse IP et du numéro de port du client hôte au client
-                    char response[1024];
-                    snprintf(response, sizeof(response), "Success Open External File, %d,%s,%d", host_client_id, current_client->client->ip_address, current_client->client->port);
-                    if (write(client_socket, response, strlen(response)) == -1) {
-                        perror("Error sending response to client");
+                    // Création d'un objet JSON
+                    json_object *json_obj = json_object_new_object();
+                    char response[100]; 
+                    strcpy(response, "Success Open External File ");
+                    strcat(response, filename);
+                    json_object_object_add(json_obj, "response", json_object_new_string(response));
+                    json_object_object_add(json_obj, "host_client_id", json_object_new_int(host_client_id));
+                    json_object_object_add(json_obj, "host_client_ip_address", json_object_new_string(current_client->client->ip_address));
+                    json_object_object_add(json_obj, "host_client_port", json_object_new_int(current_client->client->port));
+
+                    // Conversion de l'objet JSON en chaîne de caractères
+                    const char *json_str = json_object_to_json_string(json_obj);
+
+                    // Envoi des informations du serveur au client
+                    if (write(client_socket, json_str, strlen(json_str)) == -1) {
+                        perror("Error sending client information to server");
+                        exit(EXIT_FAILURE);
                     }
+
                     pthread_mutex_unlock(&client_mutex);
                     printf("External file opened:\n");
                     printf("File Name: %s\n", filename);
@@ -463,14 +488,32 @@ void open_external_file(int client_socket, json_object *object) {
             }
             pthread_mutex_unlock(&client_mutex);
             // Le client hôte n'a pas été trouvé
-            if (write(client_socket, "Failed Open External File, Host client not found", sizeof("Failed Open External File, Host client not found")) == -1) {
-                perror("Error sending response to client");
+            // Création d'un objet JSON
+            json_object *json_obj = json_object_new_object();
+            json_object_object_add(json_obj, "response", json_object_new_string("Failed Open External File"));
+            
+            // Conversion de l'objet JSON en chaîne de caractères
+            const char *json_str = json_object_to_json_string(json_obj);
+
+            // Envoi des informations du serveur au client
+            if (write(client_socket, json_str, strlen(json_str)) == -1) {
+                perror("Error sending client information to server");
+                exit(EXIT_FAILURE);
             }
             return;
     }else{
         // Le fichier n'a pas été trouvé
-        if (write(client_socket, "Failed Open External File, File not found", sizeof("Failed Open External File, File not found")) == -1) {
-            perror("Error sending response to client");
+        // Création d'un objet JSON
+        json_object *json_obj = json_object_new_object();
+        json_object_object_add(json_obj, "response", json_object_new_string("Failed Open External File"));
+        
+        // Conversion de l'objet JSON en chaîne de caractères
+        const char *json_str = json_object_to_json_string(json_obj);
+
+        // Envoi des informations du serveur au client
+        if (write(client_socket, json_str, strlen(json_str)) == -1) {
+            perror("Error sending client information to server");
+            exit(EXIT_FAILURE);
         }
     }
 }
@@ -516,7 +559,7 @@ void close_file(int client_socket, json_object *object) {
     pthread_mutex_lock(&line_mutex);
     LockedLineNode *locked_line_node = session->locked_lines;
     while (locked_line_node != NULL) {
-        if (strcmp(locked_line_node->line->file_id,filename)) {
+        if (strcmp(locked_line_node->line->file_id,filename)==0) {
             // Suppression des requêtes associées à cette ligne
             RequestNode *prev_req = NULL;
             RequestNode *current_req = locked_line_node->line->requests;
@@ -576,7 +619,7 @@ void close_file(int client_socket, json_object *object) {
 
     // Envoi d'un message de succès au client
     char response[1024];
-    snprintf(response, sizeof(response), "Success Close File, %s", filename);   
+    snprintf(response, sizeof(response), "Success Close File %s", filename);   
     if (write(client_socket, response, sizeof(response)) == -1) {
         perror("Error sending success message to client");
     }
@@ -656,7 +699,7 @@ void lock_line(int client_socket, json_object *object) {
 
             // Envoi d'un message d'Attente au client
             char response[1024];
-            snprintf(response, sizeof(response), "Waiting ..., %d,%s", line_id, file_id);   
+            snprintf(response, sizeof(response), "Waiting ... %s : %d", file_id, line_id);   
             if (write(client_socket, response, sizeof(response)) == -1) {
                 perror("Error sending waiting message to client");
             }
@@ -709,7 +752,7 @@ void lock_line(int client_socket, json_object *object) {
     
     // Envoi d'un message de succès au client
     char response[1024];
-    snprintf(response, sizeof(response), "Success Lock Line,%d,%s", line_id,file_id);   
+    snprintf(response, sizeof(response), "Success Lock Line %s : %d", file_id, line_id);   
     if (write(client_socket, response, sizeof(response)) == -1) {
         perror("Error sending success message to client");
     }
@@ -774,7 +817,7 @@ void unlock_line(int client_socket, json_object *object) {
                 
                 // Envoi d'un message de succès au client
                 char response[1024];
-                snprintf(response, sizeof(response), "Success Unlock Line,%d,%s", line_id,file_id);   
+                snprintf(response, sizeof(response), "Success Unlock Line %s : %d", file_id, line_id);   
                 if (write(client_socket, response, sizeof(response)) == -1) {
                     perror("Error sending success message to client");
                 }
@@ -799,7 +842,7 @@ void unlock_line(int client_socket, json_object *object) {
 
                         // Envoi d'un message de succès au client
                         char response[1024];
-                        snprintf(response, sizeof(response), "Success Unlock Line,%d,%s", line_id,file_id);   
+                        snprintf(response, sizeof(response), "Success Unlock Line %s : %d", file_id, line_id);   
                         if (write(client_socket, response, sizeof(response)) == -1) {
                             perror("Error sending success message to client");
                         }
@@ -850,10 +893,19 @@ void unlock_line(int client_socket, json_object *object) {
                         }
 
                         // Envoi des informations du serveur au client
-                        char response[1024];
-                        snprintf(response, sizeof(response), "Success Lock Line,%d,%s", line_id,file_id);   
-                        if (write(new_client_socket, response, sizeof(response)) == -1) {
-                            perror("Error sending success message to client");
+                        // Création d'un objet JSON
+                        json_object *json_obj = json_object_new_object();
+                        json_object_object_add(json_obj, "number", json_object_new_int(3));
+                        json_object_object_add(json_obj, "line_id", json_object_new_int(line_id));
+                        json_object_object_add(json_obj, "filename", json_object_new_string(file_id));
+
+                        // Conversion de l'objet JSON en chaîne de caractères
+                        const char *json_str = json_object_to_json_string(json_obj);
+
+                        // Envoi des informations du client au serveur
+                        if (write(client_socket, json_str, strlen(json_str)) == -1) {
+                            perror("Error sending client information to server");
+                            exit(EXIT_FAILURE);
                         }
 
                         close(new_client_socket);
@@ -886,5 +938,74 @@ void unlock_line(int client_socket, json_object *object) {
     // Si la ligne n'est pas verrouillée, envoyer un message d'erreur au client
     if (write(client_socket, "Failed Unlocked Line", sizeof("Failed Unlocked Line")) == -1) {
         perror("Error sending failed message to client");
+    }
+}
+
+
+
+
+
+
+//______________________________________________________________________________________________________________________________________________________
+void delete_line(int client_socket, json_object *object){
+    // Extraction des IDs client, ligne et fichier du token
+    int line_id;
+    char *file_id;
+    
+    // Initialisation de la variable pour stocker la valeur extraite
+    json_object *line_id_obj = NULL;
+    json_object *file_id_obj = NULL;
+
+    // Lecture des données du client depuis le token
+    json_object_object_get_ex(object, "line_id", &line_id_obj);
+    json_object_object_get_ex(object, "filename", &file_id_obj);
+
+    // Vérification de la présence des clés et extraction des valeurs
+    if (line_id_obj != NULL && file_id_obj != NULL) {
+        line_id = json_object_get_int(line_id_obj);
+        file_id = strdup(json_object_get_string(file_id_obj));
+    }
+
+    // Suppression des requêtes associées à la ligne verrouillée
+    pthread_mutex_lock(&line_mutex);
+    LockedLineNode *locked_line_node = session->locked_lines;
+    while (locked_line_node != NULL) {
+        if (strcmp(locked_line_node->line->file_id,file_id)==0) {
+            // Suppression des requêtes associées à cette ligne
+            RequestNode *prev_req = NULL;
+            RequestNode *current_req = locked_line_node->line->requests;
+            while (current_req != NULL) {
+                if (current_req->request->line_id == line_id) {
+                    // Suppression de la requête
+                    if (prev_req == NULL) {
+                        locked_line_node->line->requests = current_req->next;
+                        free(current_req->request);
+                        free(current_req);
+                        current_req = locked_line_node->line->requests;
+                    } else {
+                        prev_req->next = current_req->next;
+                        free(current_req->request);
+                        free(current_req);
+                        current_req=prev_req->next;
+                    }
+                    locked_line_node->line->request_count--;
+                    break;
+                }    
+                prev_req = current_req;
+                current_req = current_req->next;
+                
+            }
+        }
+        locked_line_node = locked_line_node->next;
+    }
+    pthread_mutex_unlock(&line_mutex);
+
+    printf("Total Requete Supprimées: %d\n",locked_line_node->line->request_count);
+
+    // Envoi d'un message de succès au client
+    char response[1024];
+    snprintf(response, sizeof(response), "Success Delete Line %s", file_id);   
+    if (write(client_socket, response, sizeof(response)) == -1) {
+        perror("Error sending success message to client");
     }
 }
