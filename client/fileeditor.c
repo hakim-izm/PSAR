@@ -5,9 +5,7 @@
 #include "fileeditorconnect.h"
 #include "api/client.h"
 
-struct _FileEditor {
-	GtkApplication parent;
-};
+
 
 G_DEFINE_TYPE(FileEditor, file_editor, GTK_TYPE_APPLICATION);
 
@@ -174,7 +172,6 @@ static GActionEntry app_entries[] = {
  */
 
 static void file_editor_init(FileEditor *app) {
-
 }
 
 static void file_editor_activate(GApplication *app) {

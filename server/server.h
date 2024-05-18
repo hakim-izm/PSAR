@@ -1,3 +1,5 @@
+#pragma once
+
 #include <pthread.h> // Pour la gestion des threads
 #include <stdlib.h>  // Pour la gestion de la mémoire dynamique
 #include <json-c/json.h> // Pour la manipulation des objets JSON

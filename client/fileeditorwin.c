@@ -30,7 +30,7 @@ void save_file_call(File * file, const char * filepath, FileEditorWindow *win) {
 	// copie locale dans le répertoire courant si filepath est NULL
 	const char *path = filepath ? filepath : file->filename;
 
-	save_file(file, path);
+	local_save_file(file, path);
 
 	// win->dirty = FALSE;
 }
@@ -164,7 +164,7 @@ void on_confirm_edit_clicked(GtkButton *button, FileEditorWindow *win)
 
 	char *text = gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
 
-	edit_line(selected_line, text);
+	local_edit_line(selected_line, text);
 
 	win->dirty = TRUE;
 	
@@ -232,7 +232,7 @@ void on_add_clicked(GtkButton *button, FileEditorWindow *win)
 
 	LineNode *selected_line_node = get_line_node_from_line(selected_line, file_struct);
 
-	add_line(file_struct, selected_line_node, "New line", ADD_INSERT);
+	local_add_line(file_struct, selected_line_node, "New line", ADD_INSERT);
 
 	win->dirty = TRUE;
 
@@ -323,7 +323,7 @@ void on_delete_clicked(GtkButton *button, FileEditorWindow *win)
 	if(selected_row)
 		remove_row_from_listbox(listbox, selected_row);
 
-	remove_line(file_struct, selected_line);
+	local_remove_line(file_struct, selected_line);
 	
 	win->dirty = TRUE;
 
@@ -391,7 +391,7 @@ void file_editor_window_close(FileEditorWindow *win)
 		listbox = GTK_LIST_BOX(gtk_widget_get_first_child(gtk_widget_get_first_child(visible_child)));
 
 		empty_listbox(listbox);
-		close_file(file_struct);
+		local_close_file(file_struct);
 
 		visible_child = gtk_widget_get_next_sibling(visible_child);
 	}
@@ -429,7 +429,7 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file)
 
 	filepath = g_file_get_path(file);
 
-	File *file_struct = open_local_file(filepath);
+	File *file_struct = local_open_local_file(filepath);
 
 	// LISTBOX STUFF
 

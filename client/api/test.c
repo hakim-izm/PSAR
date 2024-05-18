@@ -15,7 +15,7 @@ int main(int argc, char **argv){
 		return -1;
 	}
 
-	File * file = open_local_file(argv[1]);
+	File * file = local_open_local_file(argv[1]);
 
 	if(!file){
 		fprintf(stderr, "Failed to open file: %s\n", argv[1]);
@@ -32,19 +32,19 @@ int main(int argc, char **argv){
 	print_file_content(file);
 
 	// Test add line
-	add_line(file, file->lines, "Test add line 1", ADD_APPEND);
+	local_add_line(file, file->lines, "Test add line 1", ADD_APPEND);
 
 	printf("\nTEST: PRINT FILE CONTENT AFTER ADD APPEND\n");
 	print_file_content(file);
 
 	// Test add line
-	add_line(file, file->lines->next, "Test add line 2", ADD_INSERT);
+	local_add_line(file, file->lines->next, "Test add line 2", ADD_INSERT);
 
 	printf("\nTEST: PRINT FILE CONTENT AFTER ADD INSERT\n");
 	print_file_content(file);
 	
 	// Test add line at the beginning
-	add_line(file, NULL, "Test add line 3", ADD_INSERT);
+	local_add_line(file, NULL, "Test add line 3", ADD_INSERT);
 
 	printf("\nTEST: PRINT FILE CONTENT AFTER ADD INSERT\n");
 	print_file_content(file);
@@ -57,7 +57,7 @@ int main(int argc, char **argv){
 
 
 	// Close file
-	close_file(file);
+	local_close_file(file);
 
 	return 0;
 }
