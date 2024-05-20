@@ -68,16 +68,16 @@ struct ThreadArgs {
 // Méthodes 
 void *initialize_client(); // Initialise le client et configure les paramètres de communication.
 void *receive_request(void *args); // Reçoit une demande d'un client ou serveur.
-void connexion(const char *server_ip);  // Connexion au serveur.
-void deconnexion(const char *server_ip); // Déconnexion du serveur.
-void open_local_file(const char *server_ip, char *filename); // Ouverture d'un fichier local.
-void open_external_file(const char *server_ip, char *filename); // Ouverture d'un fichier distant.
-void close_file(const char *server_ip, char *filename); // Fermeture d'un fichier.
-void lock_line(const char *server_ip, char *filename, int line_id); // Verrouille une ligne.
-void unlock_line(const char *server_ip, char *filename, int line_id); // Deverrouille une ligne.
-void add_line(char *filename, char *text, int line_before_id); // Ajouter une ligne.
-void delete_line(const char *server_ip, char *filename, int line_id); // Suppression une ligne.
-void modify_line(char *filename, char *text, int line_id); // Modification d'une ligne.
+int connexion(const char *server_ip);  // Connexion au serveur.
+int deconnexion(const char *server_ip); // Déconnexion du serveur.
+int open_local_file(const char *server_ip, char *filename); // Ouverture d'un fichier local.
+int open_external_file(const char *server_ip, char *filename); // Ouverture d'un fichier distant.
+int close_file(const char *server_ip, char *filename); // Fermeture d'un fichier.
+int lock_line(const char *server_ip, char *filename, int line_id); // Verrouille une ligne.
+int unlock_line(const char *server_ip, char *filename, int line_id); // Deverrouille une ligne.
+int add_line(char *filename, char *text, int line_before_id); // Ajouter une ligne.
+int delete_line(const char *server_ip, char *filename, int line_id); // Suppression une ligne.
+int modify_line(char *filename, char *text, int line_id); // Modification d'une ligne.
 void *send_all(void *arg); // Envoie un message a un clients.
 
 void ask_information_external_file(int socket, json_object *object); // Demande des informations du fichier distant.

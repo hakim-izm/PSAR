@@ -11,13 +11,20 @@
 
 #define SERVER_PORT 8080
 #define CLIENT_PORT 1234
+pthread_mutex_t file_mutex;
 ClientSession *session;
 Client *client;
 int client_fd;  
-const int UID = 123;
+const int UID;
 const char * IP_ADD = "localhost";
 
-void *initialize_client() {
+void *initialize_client(int port, int uid) {
+    
+    // Initialisation des mutex
+    if (pthread_mutex_init(&file_mutex, NULL) != 0 ) {
+        perror("Mutex initialization failed");
+        exit(EXIT_FAILURE);
+    }
     
     // Initialisation de la session du client
     session = (ClientSession *)malloc(sizeof(ClientSession));
@@ -183,7 +190,7 @@ void *receive_request(void *args){
 
 
 //______________________________________________________________________________________________________________________________________________________
-void connexion(const char *server_ip){
+int connexion(const char *server_ip){
     // Création de la socket
     int client_socket;
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -230,16 +237,18 @@ void connexion(const char *server_ip){
         perror("Error receiving response from server");
         exit(EXIT_FAILURE);
     }
+    
+    // Fermeture de la socket
+    close(client_socket);
 
     printf("Connection request response : %s\n",response);
     if(strcmp(response, "Success Connexion") == 0){
         // Connexion Réussie
-    }else{
-        // Connexion Echoué
+        return 1;
     }
-    
-    // Fermeture de la socket
-    close(client_socket);
+
+    // Connexion Echoué
+    return 0;
 }
 
 
@@ -250,7 +259,7 @@ void connexion(const char *server_ip){
 
 
 //______________________________________________________________________________________________________________________________________________________
-void deconnexion(const char *server_ip){
+int deconnexion(const char *server_ip){
     // Création de la socket
     int client_socket;
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -296,16 +305,17 @@ void deconnexion(const char *server_ip){
         exit(EXIT_FAILURE);
     }
 
-    printf("Deconnexion request response : %s\n",response);
-    if(strcmp(response, "Success Deconnexion") == 0){
-        // Deconnexion Réussie
-    }else{
-        // Deconnexion Echoué
-    }
-    
     // Fermeture de la socket
     close(client_socket);
 
+    printf("Deconnexion request response : %s\n",response);
+    if(strcmp(response, "Success Deconnexion") == 0){
+        // Deconnexion Réussie
+        return 1;
+    }
+
+    // Deconnexion Echoué
+    return 0;
 }
 
 
@@ -315,7 +325,7 @@ void deconnexion(const char *server_ip){
 
 
 //______________________________________________________________________________________________________________________________________________________
-void open_local_file(const char *server_ip, char *filename){
+int open_local_file(const char *server_ip, char *filename){
     // Création de la socket
     int client_socket;
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -363,55 +373,20 @@ void open_local_file(const char *server_ip, char *filename){
     }
 
     printf("Open Local File request response : %s\n",response);
+    
+    // Fermeture de la socket
+    close(client_socket);
+
     char success[100]; 
     strcpy(success, "Success Open Local File ");
     strcat(success, filename);
     if(strcmp(response, success) == 0){
         // Ouverture d'un fichier local Réussie
+        return 1;
 
-        // Création du nouveau fichier
-        File *new_file = (File *)malloc(sizeof(File));
-        if (new_file == NULL) {
-            perror("Memory allocation failed");
-            exit(EXIT_FAILURE);
-        }
-
-        // Attribution des valeurs
-        new_file->filename = strdup(filename);
-        if (new_file->filename == NULL) {
-            perror("Memory allocation failed");
-            exit(EXIT_FAILURE);
-        }
-        new_file->host_client = client;
-        new_file->lines = NULL; // Liste des lignes vide
-        new_file->line_count = 0;
-        new_file->clients = NULL; // Liste des clients vide
-        new_file->client_count = 0;
-
-        // Ajout du fichier à la liste des fichiers dans ClientSession
-        FileNode *new_file_node = (FileNode *)malloc(sizeof(FileNode));
-        if (new_file_node == NULL) {
-            perror("Memory allocation failed");
-            exit(EXIT_FAILURE);
-        }
-        new_file_node->file = new_file;
-
-        // Si la liste des fichiers n'est pas vide, ajoutez le nouveau fichier en tête de liste
-        if (session->files != NULL) {
-            new_file_node->next = session->files;
-        }
-
-        session->files = new_file_node;
-        session->file_count++;
-
-        printf("J'ai crée un nouveau fichier. Il y a %d fichiers dans ma liste\n", session->file_count);
-
-    }else{
-        // Ouverture d'un fichier local Echoué
     }
-    
-    // Fermeture de la socket
-    close(client_socket);
+
+    return 0;
 }
 
 
@@ -421,7 +396,7 @@ void open_local_file(const char *server_ip, char *filename){
 
 
 //______________________________________________________________________________________________________________________________________________________
-void open_external_file(const char *server_ip, char *filename){
+int open_external_file(const char *server_ip, char *filename){
     // Création de la socket
     int client_socket;
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -742,6 +717,8 @@ void open_external_file(const char *server_ip, char *filename){
             }
             new_file_node->file = new_file;
 
+            pthread_mutex_lock(&file_mutex); // Verrouiller avant de modifier la liste des fichiers
+
             // Si la liste des fichiers n'est pas vide, ajoutez le nouveau fichier en tête de liste
             if (session->files != NULL) {
                 new_file_node->next = session->files;
@@ -777,14 +754,20 @@ void open_external_file(const char *server_ip, char *filename){
                 current_client_node = current_client_node->next;
             }
 
+            pthread_mutex_unlock(&file_mutex); // Déverrouiller après la modification
+
             printf("Ajout d'un nouveau fichier. Il y a %d fichiers dans ma liste\n", session->file_count);
+
+            return 1;
 
         }else{
             //Ouverture d'un fichier external depuis le host Echoué
+            return 0;
         }
 
     }else{
         // Ouverture d'un fichier distant Echoué
+        return 0;
     }
 }
 
@@ -796,7 +779,7 @@ void open_external_file(const char *server_ip, char *filename){
 
 
 //______________________________________________________________________________________________________________________________________________________
-void close_file(const char *server_ip, char *filename){
+int close_file(const char *server_ip, char *filename){
     // Création de la socket
     int client_socket;
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -849,8 +832,9 @@ void close_file(const char *server_ip, char *filename){
     strcat(success, filename);
     if(strcmp(response, success) == 0){
         // Fermeture d'un fichier local Réussie
-
+        
         // Recherche du fichier dans la liste des fichiers
+        pthread_mutex_lock(&file_mutex);
         FileNode *current_file_node = session->files;
         while (current_file_node != NULL) {
             if (strcmp(current_file_node->file->filename, filename) == 0) {
@@ -878,9 +862,12 @@ void close_file(const char *server_ip, char *filename){
                 }
 
                 while(current_file_node->file->client_count>0){
+                    pthread_mutex_unlock(&file_mutex);
                     // Attendre que client_count == 0
                     sleep(1000);
+                    pthread_mutex_lock(&file_mutex);
                 }
+                
 
                 if(current_file_node->file->client_count == 0){
                     // Suppression de tous les clients
@@ -911,18 +898,21 @@ void close_file(const char *server_ip, char *filename){
                         free(current_file_node->file);
                     }
                 }
-
+                
                 break;
             }
             current_file_node = current_file_node->next;
+            pthread_mutex_unlock(&file_mutex);
         }
     }else{
         // Fermeture d'un fichier Echoué
+        return 0;
     }
     
     printf("Suppression du fichier %s Réussi !!!\n", filename);
     // Fermeture de la socket
     close(client_socket);
+    return 1;
 }
 
 
@@ -933,7 +923,7 @@ void close_file(const char *server_ip, char *filename){
 
 
 //______________________________________________________________________________________________________________________________________________________
-void lock_line(const char *server_ip, char *filename, int line_id){
+int lock_line(const char *server_ip, char *filename, int line_id){
     // Création de la socket
     int client_socket;
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -997,17 +987,20 @@ void lock_line(const char *server_ip, char *filename, int line_id){
     strcat(waiting, filename);
     strcat(waiting, " : ");
     strcat(waiting, line_id_str);
-
-    if(strcmp(response, success) == 0){
-        // Verrouillage de la ligne Réussie
-    }else if(strcmp(response, waiting) == 0){
-        // En Attente du Verrouillage ...
-    }else{
-        // Verrouillage de la ligne Echoué
-    }
     
     // Fermeture de la socket
     close(client_socket);
+
+    if(strcmp(response, success) == 0){
+        // Verrouillage de la ligne Réussie
+        return 1;
+    }else if(strcmp(response, waiting) == 0){
+        // En Attente du Verrouillage ...
+        return 2;
+    }
+    
+    // Verrouillage de la ligne Echoué
+    return 0;
 }
 
 
@@ -1016,7 +1009,7 @@ void lock_line(const char *server_ip, char *filename, int line_id){
 
 
 //______________________________________________________________________________________________________________________________________________________
-void unlock_line(const char *server_ip, char *filename, int line_id){
+int unlock_line(const char *server_ip, char *filename, int line_id){
     // Création de la socket
     int client_socket;
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -1074,13 +1067,16 @@ void unlock_line(const char *server_ip, char *filename, int line_id){
     strcat(success, filename);
     strcat(success, " : ");
     strcat(success, line_id_str);
-
-    if(strcmp(response, success) == 0){
-        // Deverrouillage de la ligne Réussie
-    }
     
     // Fermeture de la socket
     close(client_socket);
+
+    if(strcmp(response, success) == 0){
+        // Deverrouillage de la ligne Réussie
+        return 1;
+    }
+
+    return 0;
 }
 
 
@@ -1090,8 +1086,9 @@ void unlock_line(const char *server_ip, char *filename, int line_id){
 
 
 //______________________________________________________________________________________________________________________________________________________
-void add_line(char *filename, char *text, int line_before_id){ 
+int add_line(char *filename, char *text, int line_before_id){ 
     // Recherche du fichier dans la liste des fichiers de la session
+    pthread_mutex_lock(&file_mutex);
     FileNode *current_file_node = session->files;
     File *target_file = NULL;
     while (current_file_node != NULL) {
@@ -1101,6 +1098,7 @@ void add_line(char *filename, char *text, int line_before_id){
         }
         current_file_node = current_file_node->next;
     }
+    pthread_mutex_unlock(&file_mutex);
 
     if (target_file == NULL) {
         perror("Le fichier n'a pas été trouvé.\n");
@@ -1108,9 +1106,11 @@ void add_line(char *filename, char *text, int line_before_id){
     }
 
     // Récupération des informations sur le host
+    pthread_mutex_lock(&file_mutex);
     Client *host_client = target_file->host_client;
     int host_port = host_client->port;
     char *host_ip = host_client->ip_address;
+    pthread_mutex_unlock(&file_mutex);
 
     // Création d'un objet JSON pour envoyer les informations
     json_object *json_obj = json_object_new_object();
@@ -1196,6 +1196,7 @@ void add_line(char *filename, char *text, int line_before_id){
         json_object_object_add(json_obj_clients, "text", json_object_new_string(text));
 
         // Envoi d'un message de fermeture de fichier à tous les clients
+        pthread_mutex_lock(&file_mutex);
         ClientNode *current_client_node = target_file->clients;
         while (current_client_node != NULL) {
 
@@ -1242,12 +1243,15 @@ void add_line(char *filename, char *text, int line_before_id){
         new_line_node->next = current_line_node->next;
         current_line_node->next = new_line_node;
         target_file->line_count++;
+        pthread_mutex_unlock(&file_mutex);
 
         printf("La ligne avec l'ID %d a été ajouter dans le fichier %s. Il y a %d de ligne dans le fichier\n",line_id, filename, target_file->line_count);
 
-    }else{
-        // Ajout d'une ligne Echoué
+        return 1;
     }
+        
+    // Ajout d'une ligne Echoué
+    return 0;
 }
 
 
@@ -1257,7 +1261,7 @@ void add_line(char *filename, char *text, int line_before_id){
 
 
 //______________________________________________________________________________________________________________________________________________________
-void delete_line(const char *server_ip, char *filename, int line_id){
+int delete_line(const char *server_ip, char *filename, int line_id){
     // Création de la socket
     int client_socket;
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -1315,6 +1319,7 @@ void delete_line(const char *server_ip, char *filename, int line_id){
         // Suppression d'une ligne Réussie
 
         // Recherche du fichier dans la liste des fichiers de la session
+        pthread_mutex_lock(&file_mutex);
         FileNode *current_file_node = session->files;
         File *target_file = NULL;
         while (current_file_node != NULL) {
@@ -1324,6 +1329,7 @@ void delete_line(const char *server_ip, char *filename, int line_id){
             }
             current_file_node = current_file_node->next;
         }
+        pthread_mutex_unlock(&file_mutex);
 
         if (target_file == NULL) {
             perror("Le fichier n'a pas été trouvé.\n");
@@ -1331,20 +1337,24 @@ void delete_line(const char *server_ip, char *filename, int line_id){
         }
 
         // Récupération des informations sur le host
+        pthread_mutex_lock(&file_mutex);
         Client *host_client = target_file->host_client;
         int host_port = host_client->port;
         char *host_ip = host_client->ip_address;
         int host_id = host_client->uid;
+        pthread_mutex_unlock(&file_mutex);
 
         // Suppression de la ligne
         LineNode *current_line_node = target_file->lines;
         LineNode *prev_line_node = NULL;
 
         // Recherche de la ligne à supprimer
+        pthread_mutex_lock(&file_mutex);
         while (current_line_node != NULL && current_line_node->line->id != line_id) {
             prev_line_node = current_line_node;
             current_line_node = current_line_node->next;
         }
+        pthread_mutex_unlock(&file_mutex);
 
         // Vérification si la ligne a été trouvée
         if (current_line_node == NULL) {
@@ -1353,6 +1363,7 @@ void delete_line(const char *server_ip, char *filename, int line_id){
         }
 
         // La ligne à supprimer a été trouvée
+        pthread_mutex_lock(&file_mutex);
         if (prev_line_node == NULL) {   
             // Si la ligne à supprimer est la première de la liste  
             current_line_node->line->text="";
@@ -1360,7 +1371,7 @@ void delete_line(const char *server_ip, char *filename, int line_id){
             // Sinon, relier la ligne précédente à la suivante, en sautant la ligne à supprimer
             prev_line_node->next = current_line_node->next;
         }
-
+        pthread_mutex_unlock(&file_mutex);
         
         // Création d'un objet JSON
         json_object *json_obj_clients = json_object_new_object();
@@ -1369,6 +1380,7 @@ void delete_line(const char *server_ip, char *filename, int line_id){
         json_object_object_add(json_obj_clients, "line_id", json_object_new_int(line_id));
 
         // Envoi d'un message de fermeture de fichier à tous les clients
+        pthread_mutex_lock(&file_mutex);
         ClientNode *current_client_node = target_file->clients;
         while (current_client_node != NULL) {
 
@@ -1401,10 +1413,14 @@ void delete_line(const char *server_ip, char *filename, int line_id){
         }
 
         target_file->line_count--;
+        pthread_mutex_unlock(&file_mutex);
+
         printf("La ligne avec l'ID %d a été supprimer dans le fichier %s. Il y a %d de ligne dans le fichier\n",line_id, filename, target_file->line_count);
-    }else{
-        // Suppression d'une ligne Echoué
+        return 1;
     }
+        
+    // Suppression d'une ligne Echoué
+    return 0;
 }
 
 
@@ -1417,8 +1433,9 @@ void delete_line(const char *server_ip, char *filename, int line_id){
 
 
 //______________________________________________________________________________________________________________________________________________________
-void modify_line(char *filename, char *text, int line_id){
+int modify_line(char *filename, char *text, int line_id){
     // Recherche du fichier dans la liste des fichiers de la session
+    pthread_mutex_lock(&file_mutex);
     FileNode *current_file_node = session->files;
     File *target_file = NULL;
     while (current_file_node != NULL) {
@@ -1428,13 +1445,15 @@ void modify_line(char *filename, char *text, int line_id){
         }
         current_file_node = current_file_node->next;
     }
+    pthread_mutex_unlock(&file_mutex);
 
     if (target_file == NULL) {
         perror("Le fichier n'a pas été trouvé.\n");
-        return;
+        return 0;
     }
 
     // Récupération des informations sur le host
+    pthread_mutex_lock(&file_mutex);
     Client *host_client = target_file->host_client;
     int host_port = host_client->port;
     char *host_ip = host_client->ip_address;
@@ -1449,15 +1468,16 @@ void modify_line(char *filename, char *text, int line_id){
         prev_line_node = current_line_node;
         current_line_node = current_line_node->next;
     }
+    pthread_mutex_unlock(&file_mutex);
 
     // Vérification si la ligne a été trouvée
     if (current_line_node == NULL) {
         printf("La ligne avec l'ID %d n'a pas été trouvée dans le fichier %s.\n", line_id, filename);
-        return;
+        return 0;
     }
 
     current_line_node->line->text=text;
-
+    
     
     // Création d'un objet JSON
     json_object *json_obj_clients = json_object_new_object();
@@ -1467,6 +1487,7 @@ void modify_line(char *filename, char *text, int line_id){
     json_object_object_add(json_obj_clients, "text", json_object_new_string(text));
 
     // Envoi d'un message de fermeture de fichier à tous les clients
+    pthread_mutex_lock(&file_mutex);
     ClientNode *current_client_node = target_file->clients;
     while (current_client_node != NULL) {
 
@@ -1479,10 +1500,12 @@ void modify_line(char *filename, char *text, int line_id){
 
         pthread_t client_thread;
         if (pthread_create(&client_thread, NULL, send_all,args) != 0) {
-            perror("Thread creation failed");
+            perror("Thread creation failed"); 
+            return 0;
         }
         current_client_node = current_client_node->next;
     }
+    pthread_mutex_unlock(&file_mutex);
 
     if(UID != host_id){
         // Allocation et initialisation de la structure des arguments
@@ -1499,6 +1522,7 @@ void modify_line(char *filename, char *text, int line_id){
     }
 
     printf("La ligne avec l'ID %d a été modifié dans le fichier %s\n", line_id, filename);
+    return 1;
 }
 
 
@@ -1564,9 +1588,11 @@ void *send_all(void *arg) {
         switch (num) {
             case 1:
                 // Si num est égal à 1, décrémenter client_count du fichier
+                pthread_mutex_lock(&file_mutex);
                 if (file != NULL) {
                     file->client_count--;
                 }
+                pthread_mutex_unlock(&file_mutex);
                 break;
             default:
                 break;
@@ -1616,6 +1642,7 @@ void ask_information_external_file(int socket, json_object *object){
     }
 
     // Recherche du nom du fichier dans la liste des fichiers de la session
+    pthread_mutex_lock(&file_mutex);
     FileNode *current_file_node = session->files;
     File *target_file = NULL;
     while (current_file_node != NULL) {
@@ -1675,7 +1702,7 @@ void ask_information_external_file(int socket, json_object *object){
 
     // Envoi des informations du host au client
     if (write(socket, json_str, strlen(json_str)) == -1) {
-        perror("Error sending host information to client");
+        perror("Error sending host information to client"); 
         exit(EXIT_FAILURE);
     }
 
@@ -1709,6 +1736,8 @@ void ask_information_external_file(int socket, json_object *object){
     target_file->clients = new_client_node;
 
     target_file->client_count++;
+    pthread_mutex_unlock(&file_mutex);
+
     printf("Un nouveau client est avec nous dans le fichier %s. Maintenant il y a %d clients\n",filename,target_file->client_count);
 }
 
@@ -1750,6 +1779,7 @@ void new_client_file(int socket, json_object *object){
     }
 
     // Recherche du nom du fichier dans la liste des fichiers de la session
+    pthread_mutex_lock(&file_mutex);
     FileNode *current_file_node = session->files;
     File *target_file = NULL;
     while (current_file_node != NULL) {
@@ -1759,6 +1789,7 @@ void new_client_file(int socket, json_object *object){
         }
         current_file_node = current_file_node->next;
     }
+    pthread_mutex_unlock(&file_mutex);
 
     if (target_file == NULL) {
         perror("Le fichier n'a pas été trouvé.\n");
@@ -1789,12 +1820,14 @@ void new_client_file(int socket, json_object *object){
     }
     new_client_node->client = new_client;
 
+    pthread_mutex_lock(&file_mutex);
     if (target_file->clients != NULL) {
         new_client_node->next = target_file->clients;
     }
     target_file->clients = new_client_node;
 
     target_file->client_count++;
+    pthread_mutex_unlock(&file_mutex);
 
     // Envoi d'un message au client
     if (write(socket, "Success Add Client", sizeof("Success Add Client")) == -1) {
@@ -1872,6 +1905,7 @@ void ask_close_file(int socket, json_object *object){
     }
 
     // Recherche du nom du fichier dans la liste des fichiers de la session
+    pthread_mutex_lock(&file_mutex);
     FileNode *current_file_node = session->files;
     File *target_file = NULL;
     FileNode *prev_file_node = NULL;
@@ -1883,12 +1917,14 @@ void ask_close_file(int socket, json_object *object){
         prev_file_node = current_file_node;
         current_file_node = current_file_node->next;
     }
+    pthread_mutex_unlock(&file_mutex);
 
     if (target_file == NULL) {
         perror("Le fichier n'a pas été trouvé.\n");
         return;
     }
 
+    pthread_mutex_unlock(&file_mutex);
     if(target_file->host_client->uid == client_id){
         // Si le client est le host
         // Fermeture du fichier
@@ -1946,6 +1982,7 @@ void ask_close_file(int socket, json_object *object){
             current_client_node = current_client_node->next;
         }
     }
+    pthread_mutex_unlock(&file_mutex);
 
     // Envoi d'un message au client
     char response[1024];
@@ -1988,6 +2025,7 @@ void information_modification_line(int socket, json_object *object){
     }
 
     // Recherche du nom du fichier dans la liste des fichiers de la session
+    pthread_mutex_lock(&file_mutex);
     FileNode *current_file_node = session->files;
     File *target_file = NULL;
     while (current_file_node != NULL) {
@@ -2014,6 +2052,7 @@ void information_modification_line(int socket, json_object *object){
         }
         current_line_node = current_line_node->next;
     }
+    pthread_mutex_unlock(&file_mutex);
 
     // Envoi d'un message au client
     char response[1024];
@@ -2061,6 +2100,7 @@ void information_add_line(int socket, json_object *object){
     }
 
     // Recherche du nom du fichier dans la liste des fichiers de la session
+    pthread_mutex_lock(&file_mutex);
     FileNode *current_file_node = session->files;
     File *target_file = NULL;
     while (current_file_node != NULL) {
@@ -2139,6 +2179,7 @@ void information_add_line(int socket, json_object *object){
         new_line_node->next = current_line_node->next;
         current_line_node->next = new_line_node;
         target_file->line_count++;
+        pthread_mutex_unlock(&file_mutex);
 
         printf("La ligne avec l'ID %d a été ajouter dans le fichier %s. Il y a %d de ligne dans le fichier\n",line_id, filename, target_file->line_count);
 }
@@ -2175,6 +2216,7 @@ void information_delete_line(int socket, json_object *object){
     }
 
     // Recherche du nom du fichier dans la liste des fichiers de la session
+    pthread_mutex_lock(&file_mutex);
     FileNode *current_file_node = session->files;
     File *target_file = NULL;
     while (current_file_node != NULL) {
@@ -2210,6 +2252,7 @@ void information_delete_line(int socket, json_object *object){
         prev_line_node = current_line_node;
         current_line_node = current_line_node->next;
     }
+    pthread_mutex_unlock(&file_mutex);
 
     // Envoi d'un message au client
     char response[1024];
