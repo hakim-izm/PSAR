@@ -487,5 +487,6 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file, File *f_struct)
 	fill_listbox(GTK_LIST_BOX(listbox), file_struct);
 	g_object_set_data(G_OBJECT(scrolled), "file_struct", file_struct);
 	
-	g_free(filepath);
+	if(file)
+		g_free(filepath);
 }

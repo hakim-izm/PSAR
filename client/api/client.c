@@ -523,7 +523,7 @@ int open_external_file(const char *server_ip, char *filename){
         host_address.sin_port = htons(host_port);
 
         // Convertit l'adresse IPv4 et l'assigne à la structure sockaddr_in
-        if (inet_pton(AF_INET, host_ip, &host_address.sin_addr) <= 0) {
+        if (inet_pton(AF_INET, /*host_ip*/ "192.168.122.1" , &host_address.sin_addr) <= 0) {
             perror("Invalid address/ Address not supported");
             exit(EXIT_FAILURE);
         }
@@ -571,7 +571,7 @@ int open_external_file(const char *server_ip, char *filename){
             reponse_host = strdup(json_object_get_string(reponse_host_obj)); 
         }
 
-        printf("Open External File request response from host : %s\n",reponse);
+        printf("Open External File request response from host : %s\n", reponse_host);
         char success_host[100]; 
         strcpy(success_host, "Success Open External File from host ");
         strcat(success_host, filename);
@@ -620,6 +620,7 @@ int open_external_file(const char *server_ip, char *filename){
             json_object_object_get_ex(json_obj_host, "taille_client", &taille_client_obj);
             if (taille_client_obj != NULL) {
                 taille_client = json_object_get_int(taille_client_obj); 
+		printf("taille_client : %d\n",taille_client);
             }
 
             new_file->client_count=taille_client;
@@ -679,6 +680,7 @@ int open_external_file(const char *server_ip, char *filename){
             json_object_object_get_ex(json_obj_host, "taille_line", &taille_line_obj);
             if (taille_line_obj != NULL) {
                 taille_line = json_object_get_int(taille_line_obj); 
+		printf("taille_line : %d\n",taille_line);
             }
 
             new_file->line_count=taille_line;
@@ -710,7 +712,7 @@ int open_external_file(const char *server_ip, char *filename){
                 new_line->id = line_id;
                 new_line->text = strdup(line_text);
 
-                // Ajout du client à la liste des clients du fichier
+                // Ajout de la ligne à la liste des lignes du fichier
                 LineNode *new_line_node = (LineNode *)malloc(sizeof(LineNode));
                 if (new_line_node == NULL) {
                     perror("Memory allocation failed");
@@ -718,11 +720,20 @@ int open_external_file(const char *server_ip, char *filename){
                 }
 
                 new_line_node->line = new_line;
+		new_line_node->next = NULL;
 
-                if (new_file->lines != NULL) {
-                    new_line_node->next = new_file->lines;
-                }
-                new_file->lines = new_line_node;
+		// Ajout de la ligne à la fin de la liste des lignes du fichier (FIFO)
+		if (new_file->lines == NULL) {
+			// Si la liste est vide, la nouvelle ligne devient la tête de liste
+			new_file->lines = new_line_node;
+		} else {
+			// Sinon, parcours jusqu'à la fin de la liste et ajoute la nouvelle ligne
+			LineNode *current = new_file->lines;
+			while (current->next != NULL) {
+				current = current->next;
+			}
+			current->next = new_line_node;
+		}
             }
 
             // Ajout du fichier à la liste des fichiers dans ClientSession
