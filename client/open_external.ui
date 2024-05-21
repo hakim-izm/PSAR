@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+	<template class="FileEditorOpenExternal" parent="GtkDialog">
+		<property name="title" translatable="yes">Open an external file</property>
+		<property name="resizable">0</property>
+		<property name="modal">1</property>
+		<child internal-child="content_area">
+			<object class="GtkBox" id="content_area">
+				<child>
+					<object class="GtkGrid" id="fieldsGrid">
+						<property name="margin-start">12</property>
+						<property name="margin-end">12</property>
+						<property name="margin-top">12</property>
+						<property name="margin-bottom">12</property>
+						<property name="row-spacing">12</property>
+						<property name="column-spacing">12</property>
+						<child>
+							<object class="GtkLabel" id="filenameLabel">
+								<property name="label" translatable="yes">_File name:</property>
+								<property name="use-underline">1</property>
+								<property name="mnemonic-widget">filename</property>
+								<property name="xalign">1</property>
+								<layout>
+									<property name="column">0</property>
+									<property name="row">0</property>
+								</layout>
+							</object>
+						</child>
+						<child>
+							<object class="GtkEntry" id="filename">
+								<property name="editable">1</property>
+								<layout>
+									<property name="column">1</property>
+									<property name="row">0</property>
+								</layout>
+							</object>
+						</child>
+					</object>
+				</child>
+				<child>
+					<object class="GtkGrid" id="btnGrid">
+						<property name="margin-start">12</property>
+						<property name="margin-end">12</property>
+						<property name="margin-top">0</property>
+						<property name="margin-bottom">12</property>
+						<property name="row-spacing">12</property>
+						<property name="column-spacing">12</property>
+						<property name="column-homogeneous">1</property>
+						<child>
+							<object class="GtkButton" id="okBtn">
+							<property name="label" translatable="yes">OK</property>
+								<layout>
+									<property name="column">1</property>
+									<property name="row">2</property>
+								</layout>
+							</object>
+						</child>
+						<child>
+							<object class="GtkButton" id="cancelBtn">
+							<property name="label" translatable="yes">Cancel</property>
+								<layout>
+									<property name="column">0</property>
+									<property name="row">2</property>
+								</layout>
+							</object>
+						</child>
+					</object>
+				</child>
+			</object>
+		</child>
+	</template>
+</interface>

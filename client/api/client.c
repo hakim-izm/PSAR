@@ -17,7 +17,8 @@ ClientSession *session;
 pthread_mutex_t file_mutex;
 Client *client;
 int client_fd;  
-const int UID = 123;
+int UID;
+int CLIENT_PORT;
 const char * IP_ADD = "localhost";
 
 /*
@@ -38,6 +39,14 @@ void *initialize_client() {
         perror("Memory allocation failed");
         exit(EXIT_FAILURE);
     }
+
+    // généation d'un UID pour le client
+    srand(time(NULL));
+    UID = rand() % sizeof(int);
+
+    // génération d'un port pour le client 1024 - 65535
+    srand(time(NULL));
+    CLIENT_PORT = 1024 + rand() % (65535 - 1024);
 
     // Initialisation de la liste des fichiers
     session->files = NULL;
@@ -250,11 +259,11 @@ int connexion(const char *server_ip){
     printf("Connection request response : %s\n",response);
     if(strcmp(response, "Success Connexion") == 0){
         // Connexion Réussie
-        return 1;
+        return 0;
     }
 
     // Connexion Echoué
-    return 0;
+    return -1;
 }
 
 
@@ -317,11 +326,11 @@ int deconnexion(const char *server_ip){
     printf("Deconnexion request response : %s\n",response);
     if(strcmp(response, "Success Deconnexion") == 0){
         // Deconnexion Réussie
-        return 1;
+        return 0;
     }
 
     // Deconnexion Echoué
-    return 0;
+    return -1;
 }
 
 
@@ -388,11 +397,11 @@ int open_local_file(const char *server_ip, char *filename){
     strcat(success, filename);
     if(strcmp(response, success) == 0){
         // Ouverture d'un fichier local Réussie
-        return 1;
+        return 0;
 
     }
 
-    return 0;
+    return -1;
 }
 
 
@@ -502,7 +511,8 @@ int open_external_file(const char *server_ip, char *filename){
         printf("HOST : id = %d | ip = %s | port = %d\n",host_id, host_ip, host_port);
 
         // Création de la socket
-        if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+	int client_socket2;
+        if ((client_socket2 = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
             perror("Socket creation failed");
             exit(EXIT_FAILURE);
         }
@@ -519,7 +529,7 @@ int open_external_file(const char *server_ip, char *filename){
         }
 
         // Établissement de la connexion avec le serveur
-        if (connect(client_socket, (struct sockaddr *)&host_address, sizeof(host_address)) < 0) {
+        if (connect(client_socket2, (struct sockaddr *)&host_address, sizeof(host_address)) < 0) {
             perror("Connection failed");
             exit(EXIT_FAILURE);
         }
@@ -536,7 +546,7 @@ int open_external_file(const char *server_ip, char *filename){
         const char *json_str_host = json_object_to_json_string(json_obj_host);
 
         // Envoi des informations du client au host
-        if (write(client_socket, json_str_host, strlen(json_str_host)) == -1) {
+        if (write(client_socket2, json_str_host, strlen(json_str_host)) == -1) {
             perror("Error sending client information to host");
             exit(EXIT_FAILURE);
         }
@@ -544,14 +554,14 @@ int open_external_file(const char *server_ip, char *filename){
         // Attente de la réponse du host
         // Lecture des données envoyées par le host
         char buffer_host[1024]= {0};
-        ssize_t bytes_read_host = read(client_socket, buffer_host , sizeof(buffer_host));
+        ssize_t bytes_read_host = read(client_socket2, buffer_host , sizeof(buffer_host));
         if (bytes_read_host < 0) {
             perror("Error reading data from client");
-            close(client_socket);
+            close(client_socket2);
         }
         
         // Fermeture de la socket
-        close(client_socket);
+        close(client_socket2);
 
         json_obj_host = json_tokener_parse(buffer_host);
         char *reponse_host;
@@ -764,16 +774,16 @@ int open_external_file(const char *server_ip, char *filename){
 
             printf("Ajout d'un nouveau fichier. Il y a %d fichiers dans ma liste\n", session->file_count);
 
-            return 1;
+            return 0;
 
         }else{
             //Ouverture d'un fichier external depuis le host Echoué
-            return 0;
+            return -1;
         }
 
     }else{
         // Ouverture d'un fichier distant Echoué
-        return 0;
+        return -1;
     }
 }
 
@@ -912,13 +922,13 @@ int close_file(const char *server_ip, char *filename){
         }
     }else{
         // Fermeture d'un fichier Echoué
-        return 0;
+        return -1;
     }
     
     printf("Suppression du fichier %s Réussi !!!\n", filename);
     // Fermeture de la socket
     close(client_socket);
-    return 1;
+    return 0;
 }
 
 
@@ -999,14 +1009,14 @@ int lock_line(const char *server_ip, char *filename, int line_id){
 
     if(strcmp(response, success) == 0){
         // Verrouillage de la ligne Réussie
-        return 1;
+        return 0;
     }else if(strcmp(response, waiting) == 0){
         // En Attente du Verrouillage ...
         return 2;
     }
     
     // Verrouillage de la ligne Echoué
-    return 0;
+    return -1;
 }
 
 
@@ -1079,10 +1089,10 @@ int unlock_line(const char *server_ip, char *filename, int line_id){
 
     if(strcmp(response, success) == 0){
         // Deverrouillage de la ligne Réussie
-        return 1;
+        return 0;
     }
 
-    return 0;
+    return -1;
 }
 
 
@@ -1108,156 +1118,163 @@ int add_line(char *filename, char *text, int line_before_id){
 
     if (target_file == NULL) {
         perror("Le fichier n'a pas été trouvé.\n");
-        return;
+        return -1;
     }
 
     // Récupération des informations sur le host
     pthread_mutex_lock(&file_mutex);
     Client *host_client = target_file->host_client;
+    int host_uid = host_client->uid;
     int host_port = host_client->port;
     char *host_ip = host_client->ip_address;
     pthread_mutex_unlock(&file_mutex);
 
-    // Création d'un objet JSON pour envoyer les informations
-    json_object *json_obj = json_object_new_object();
-    json_object_object_add(json_obj, "number", json_object_new_int(6));
-    json_object_object_add(json_obj, "filename", json_object_new_string(filename));
-    json_object_object_add(json_obj, "line_before_id", json_object_new_int(line_before_id));
-    json_object_object_add(json_obj, "text", json_object_new_string(text));
+    int line_id;
+    if(host_uid != UID){
+        // Création d'un objet JSON pour envoyer les informations
+        json_object *json_obj = json_object_new_object();
+        json_object_object_add(json_obj, "number", json_object_new_int(6));
+        json_object_object_add(json_obj, "filename", json_object_new_string(filename));
+        json_object_object_add(json_obj, "line_before_id", json_object_new_int(line_before_id));
+        json_object_object_add(json_obj, "text", json_object_new_string(text));
 
-    // Conversion de l'objet JSON en chaîne de caractères
-    const char *json_str = json_object_to_json_string(json_obj);
+        // Conversion de l'objet JSON en chaîne de caractères
+        const char *json_str = json_object_to_json_string(json_obj);
 
-    // Création de la socket client
-    int client_socket;
-    if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("Socket creation failed");
-        exit(EXIT_FAILURE);
-    }
-
-    // Configuration de la structure sockaddr_in pour le serveur
-    struct sockaddr_in host_address;
-    host_address.sin_family = AF_INET;
-    host_address.sin_port = htons(host_port);
-    if (inet_pton(AF_INET, host_ip, &host_address.sin_addr) <= 0) {
-        perror("Invalid address/ Address not supported");
-        exit(EXIT_FAILURE);
-    }
-
-    // Établissement de la connexion avec le serveur
-    if (connect(client_socket, (struct sockaddr *)&host_address, sizeof(host_address)) < 0) {
-        perror("Connection failed");
-        exit(EXIT_FAILURE);
-    }
-
-    // Envoi des informations au serveur
-    if (write(client_socket, json_str, strlen(json_str)) == -1) {
-        perror("Error sending JSON object to server");
-        exit(EXIT_FAILURE);
-    }
-
-    // Attente de la réponse du serveur
-    // Lecture des données envoyées par le serveur
-    char buffer[1024]= {0};
-    ssize_t bytes_read = read(client_socket, buffer , sizeof(buffer));
-    if (bytes_read < 0) {
-        perror("Error reading data from client");
-        close(client_socket);
-    }
-    
-    // Fermeture de la socket
-    close(client_socket);
-
-    // Récuperation de la réponse
-    json_obj = json_tokener_parse(buffer);
-    char *reponse;
-    json_object *reponse_obj = NULL;
-    json_object_object_get_ex(json_obj, "response", &reponse_obj);
-    if (reponse_obj != NULL) {
-        reponse = strdup(json_object_get_string(reponse_obj)); 
-    }
-
-    printf("Add Line request response : %s\n",reponse);
-    char success[100]; 
-    strcpy(success, "Success Add Line ");
-    strcat(success, filename);
-    if(strcmp(reponse, success) == 0){
-        // Ajout d'une ligne Réussie
-
-        // Récupération de l'id de la ligne
-        int line_id;
-        json_object *line_id_obj = NULL;
-        json_object_object_get_ex(json_obj, "line_id", &line_id_obj);
-        if (line_id_obj != NULL) {
-            line_id = json_object_get_int(line_id_obj); 
+        // Création de la socket client
+        int client_socket;
+        if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
+            perror("Socket creation failed");
+            exit(EXIT_FAILURE);
         }
 
+        // Configuration de la structure sockaddr_in pour le serveur
+        struct sockaddr_in host_address;
+        host_address.sin_family = AF_INET;
+        host_address.sin_port = htons(host_port);
+        if (inet_pton(AF_INET, host_ip, &host_address.sin_addr) <= 0) {
+            perror("Invalid address/ Address not supported");
+            exit(EXIT_FAILURE);
+        }
+
+        // Établissement de la connexion avec le serveur
+        if (connect(client_socket, (struct sockaddr *)&host_address, sizeof(host_address)) < 0) {
+            perror("Connection failed");
+            exit(EXIT_FAILURE);
+        }
+
+        // Envoi des informations au serveur
+        if (write(client_socket, json_str, strlen(json_str)) == -1) {
+            perror("Error sending JSON object to server");
+            exit(EXIT_FAILURE);
+        }
+
+        // Attente de la réponse du client
+        // Lecture des données envoyées par client
+        char buffer[1024]= {0};
+        ssize_t bytes_read = read(client_socket, buffer , sizeof(buffer));
+        if (bytes_read < 0) {
+            perror("Error reading data from client");
+            close(client_socket);
+        }
         
-        // Création d'un objet JSON
-        json_object *json_obj_clients = json_object_new_object();
-        json_object_object_add(json_obj_clients, "number", json_object_new_int(6));
-        json_object_object_add(json_obj_clients, "filename", json_object_new_string(filename));
-        json_object_object_add(json_obj_clients, "line_before_id", json_object_new_int(line_before_id));
-        json_object_object_add(json_obj_clients, "line_id", json_object_new_int(line_id));
-        json_object_object_add(json_obj_clients, "text", json_object_new_string(text));
+        // Fermeture de la socket
+        close(client_socket);
 
-        // Envoi d'un message de fermeture de fichier à tous les clients
-        pthread_mutex_lock(&file_mutex);
-        ClientNode *current_client_node = target_file->clients;
-        while (current_client_node != NULL) {
+        // Récuperation de la réponse
+        json_obj = json_tokener_parse(buffer);
+        char *reponse;
+        json_object *reponse_obj = NULL;
+        json_object_object_get_ex(json_obj, "response", &reponse_obj);
+        if (reponse_obj != NULL) {
+            reponse = strdup(json_object_get_string(reponse_obj)); 
+        }
 
-            // Allocation et initialisation de la structure des arguments
-            struct ThreadArgs *args = malloc(sizeof(struct ThreadArgs));
-            args->obj = json_obj_clients;
-            args->client = current_client_node->client;
-            args->file = target_file;
-            args->num = 2;
+        printf("Add Line request response : %s\n",reponse);
+        char success[100]; 
+        strcpy(success, "Success Add Line ");
+        strcat(success, filename);
+        if(strcmp(reponse, success) == 0){
+            // Ajout d'une ligne Réussie
 
-            pthread_t client_thread;
-            if (pthread_create(&client_thread, NULL, send_all,args) != 0) {
-                perror("Thread creation failed");
+            // Récupération de l'id de la ligne
+            json_object *line_id_obj = NULL;
+            json_object_object_get_ex(json_obj, "line_id", &line_id_obj);
+            if (line_id_obj != NULL) {
+                line_id = json_object_get_int(line_id_obj); 
             }
-            current_client_node = current_client_node->next;
+
+            
+            // Création d'un objet JSON
+            json_object *json_obj_clients = json_object_new_object();
+            json_object_object_add(json_obj_clients, "number", json_object_new_int(6));
+            json_object_object_add(json_obj_clients, "filename", json_object_new_string(filename));
+            json_object_object_add(json_obj_clients, "line_before_id", json_object_new_int(line_before_id));
+            json_object_object_add(json_obj_clients, "line_id", json_object_new_int(line_id));
+            json_object_object_add(json_obj_clients, "text", json_object_new_string(text));
+
+            // Envoi d'un message de fermeture de fichier à tous les clients
+            pthread_mutex_lock(&file_mutex);
+            ClientNode *current_client_node = target_file->clients;
+            while (current_client_node != NULL) {
+
+                // Allocation et initialisation de la structure des arguments
+                struct ThreadArgs *args = malloc(sizeof(struct ThreadArgs));
+                args->obj = json_obj_clients;
+                args->client = current_client_node->client;
+                args->file = target_file;
+                args->num = 2;
+
+                pthread_t client_thread;
+                if (pthread_create(&client_thread, NULL, send_all,args) != 0) {
+                    perror("Thread creation failed");
+                }
+                current_client_node = current_client_node->next;
+            }
+	    pthread_mutex_unlock(&file_mutex);
+
+            return line_id;
         }
 
-        // Création de la ligne
-        Line *new_line = (Line *)malloc(sizeof(Line));
-        if (new_line == NULL) {
-            perror("Memory allocation failed");
-            exit(EXIT_FAILURE);
-        }
-
-        // Attribution des valeurs
-        new_line->id = line_id;
-        new_line->text = strdup(text);
-
-        // Ajout de la ligne a la liste lines dans le fichier
-        LineNode *new_line_node = (LineNode *)malloc(sizeof(LineNode));
-        if (new_line_node == NULL) {
-            perror("Memory allocation failed");
-            exit(EXIT_FAILURE);
-        }
-        new_line_node->line = new_line;
-        new_line_node->next = NULL;
-
-        LineNode *current_line_node = target_file->lines;
-        while (current_line_node->next != NULL && current_line_node->line->id != line_before_id) {
-            current_line_node = current_line_node->next;
-        }
-
-        // Insérez la nouvelle ligne après la ligne précédente
-        new_line_node->next = current_line_node->next;
-        current_line_node->next = new_line_node;
-        target_file->line_count++;
+    }else{
+        pthread_mutex_lock(&file_mutex);
+        line_id = target_file->line_count;
         pthread_mutex_unlock(&file_mutex);
 
-        printf("La ligne avec l'ID %d a été ajouter dans le fichier %s. Il y a %d de ligne dans le fichier\n",line_id, filename, target_file->line_count);
+        // Création d'un objet JSON
+            json_object *json_obj_clients = json_object_new_object();
+            json_object_object_add(json_obj_clients, "number", json_object_new_int(6));
+            json_object_object_add(json_obj_clients, "filename", json_object_new_string(filename));
+            json_object_object_add(json_obj_clients, "line_before_id", json_object_new_int(line_before_id));
+            json_object_object_add(json_obj_clients, "line_id", json_object_new_int(line_id));
+            json_object_object_add(json_obj_clients, "text", json_object_new_string(text));
 
-        return 1;
+            // Envoi d'un message de fermeture de fichier à tous les clients
+            pthread_mutex_lock(&file_mutex);
+            ClientNode *current_client_node = target_file->clients;
+            while (current_client_node != NULL) {
+
+                // Allocation et initialisation de la structure des arguments
+                struct ThreadArgs *args = malloc(sizeof(struct ThreadArgs));
+                args->obj = json_obj_clients;
+                args->client = current_client_node->client;
+                args->file = target_file;
+                args->num = 2;
+
+                pthread_t client_thread;
+                if (pthread_create(&client_thread, NULL, send_all,args) != 0) {
+                    perror("Thread creation failed");
+                }
+                current_client_node = current_client_node->next;
+            }
+	    pthread_mutex_unlock(&file_mutex);
+
+        return line_id;
     }
-        
+
+    
     // Ajout d'une ligne Echoué
-    return 0;
+    return -1;
 }
 
 
@@ -1339,7 +1356,7 @@ int delete_line(const char *server_ip, char *filename, int line_id){
 
         if (target_file == NULL) {
             perror("Le fichier n'a pas été trouvé.\n");
-            return;
+            return -1;
         }
 
         // Récupération des informations sur le host
@@ -1348,35 +1365,6 @@ int delete_line(const char *server_ip, char *filename, int line_id){
         int host_port = host_client->port;
         char *host_ip = host_client->ip_address;
         int host_id = host_client->uid;
-        pthread_mutex_unlock(&file_mutex);
-
-        // Suppression de la ligne
-        LineNode *current_line_node = target_file->lines;
-        LineNode *prev_line_node = NULL;
-
-        // Recherche de la ligne à supprimer
-        pthread_mutex_lock(&file_mutex);
-        while (current_line_node != NULL && current_line_node->line->id != line_id) {
-            prev_line_node = current_line_node;
-            current_line_node = current_line_node->next;
-        }
-        pthread_mutex_unlock(&file_mutex);
-
-        // Vérification si la ligne a été trouvée
-        if (current_line_node == NULL) {
-            printf("La ligne avec l'ID %d n'a pas été trouvée dans le fichier %s.\n", line_id, filename);
-            return;
-        }
-
-        // La ligne à supprimer a été trouvée
-        pthread_mutex_lock(&file_mutex);
-        if (prev_line_node == NULL) {   
-            // Si la ligne à supprimer est la première de la liste  
-            current_line_node->line->text="";
-        } else {
-            // Sinon, relier la ligne précédente à la suivante, en sautant la ligne à supprimer
-            prev_line_node->next = current_line_node->next;
-        }
         pthread_mutex_unlock(&file_mutex);
         
         // Création d'un objet JSON
@@ -1417,16 +1405,14 @@ int delete_line(const char *server_ip, char *filename, int line_id){
                 perror("Thread creation failed");
             }
         }
-
-        target_file->line_count--;
         pthread_mutex_unlock(&file_mutex);
 
         printf("La ligne avec l'ID %d a été supprimer dans le fichier %s. Il y a %d de ligne dans le fichier\n",line_id, filename, target_file->line_count);
-        return 1;
+        return 0;
     }
         
     // Suppression d'une ligne Echoué
-    return 0;
+    return -1;
 }
 
 
@@ -1455,7 +1441,7 @@ int modify_line(char *filename, char *text, int line_id){
 
     if (target_file == NULL) {
         perror("Le fichier n'a pas été trouvé.\n");
-        return 0;
+        return -1;
     }
 
     // Récupération des informations sur le host
@@ -1469,7 +1455,7 @@ int modify_line(char *filename, char *text, int line_id){
     LineNode *current_line_node = target_file->lines;
     LineNode *prev_line_node = NULL;
 
-    // Recherche de la ligne à supprimer
+    // Recherche de la ligne à modifier
     while (current_line_node != NULL && current_line_node->line->id != line_id) {
         prev_line_node = current_line_node;
         current_line_node = current_line_node->next;
@@ -1479,10 +1465,8 @@ int modify_line(char *filename, char *text, int line_id){
     // Vérification si la ligne a été trouvée
     if (current_line_node == NULL) {
         printf("La ligne avec l'ID %d n'a pas été trouvée dans le fichier %s.\n", line_id, filename);
-        return 0;
+        return -1;
     }
-
-    current_line_node->line->text=text;
     
     
     // Création d'un objet JSON
@@ -1507,7 +1491,7 @@ int modify_line(char *filename, char *text, int line_id){
         pthread_t client_thread;
         if (pthread_create(&client_thread, NULL, send_all,args) != 0) {
             perror("Thread creation failed"); 
-            return 0;
+            return -1;
         }
         current_client_node = current_client_node->next;
     }
@@ -1528,7 +1512,7 @@ int modify_line(char *filename, char *text, int line_id){
     }
 
     printf("La ligne avec l'ID %d a été modifié dans le fichier %s\n", line_id, filename);
-    return 1;
+    return 0;
 }
 
 
@@ -1867,6 +1851,7 @@ void permission_lock_line(int socket, json_object *object){
 
     // J'ai le verroue sur une ligne
 
+//     line_locked = 0;
 }
 
 
@@ -2257,7 +2242,7 @@ void information_delete_line(int socket, json_object *object){
  * METHODES LOCALES _____________________________________________________________________________________________
  */
 
-void local_add_line(File *file, LineNode *lines, const char *text, int mode) {
+void local_add_line(File *file, LineNode *lines, char *text, int mode, int open) {
 	// si mode = ADD_APPEND, on ajoute la ligne à la fin du fichier
 	// si mode = ADD_INSERT, on ajoute la ligne après la ligne courante (curr)
 	// si lines = NULL et mode = ADD_INSERT, on ajoute la ligne au début du fichier
@@ -2280,7 +2265,18 @@ void local_add_line(File *file, LineNode *lines, const char *text, int mode) {
 	}
 
 	line->text = strdup(text);
-	line->id = file->line_count;
+	if(curr && !open){
+		line->id = add_line(file->filename, text, curr->line->id);
+		if(line->id == -1) {
+			fprintf(stderr, "CLIENT API: failed adding line (add_line())\n");
+			free(line->text);
+			free(line);
+			free(new_node);
+			return;
+		}
+	}
+	else
+		line->id = file->line_count;
 	file->line_count++;
 
 	new_node->line = line;
@@ -2296,16 +2292,22 @@ void local_add_line(File *file, LineNode *lines, const char *text, int mode) {
 		new_node->next = NULL;
 		curr->next = new_node;
 	}
-
-	// TODO : envoi
-
 }
 
-void local_remove_line(File *file, Line *line) {
+void local_delete_line(File *file, Line *line, const char *server_ip) {
 	LineNode *curr = file->lines;
 	LineNode *prev = NULL;
 
+	// cas où cette ligne est la seule du fichier, on ne supprime pas la ligne, on remplace le contenu par ""
+	if(curr->line == line && !curr->next) {
+		free(curr->line->text);
+		curr->line->text = strdup("");
+		if(delete_line(server_ip, file->filename, line->id) == -1)
+			fprintf(stderr, "CLIENT API: failed deleting line (delete_line())\n");
+		return;
+	}
 
+	// cas général
 	while(curr) {
 		if(curr->line == line) {
 			if(prev) {
@@ -2318,7 +2320,8 @@ void local_remove_line(File *file, Line *line) {
 			free(curr->line);
 			free(curr);
 
-			// TODO : envoi
+			if(delete_line(server_ip, file->filename, line->id) == -1)
+				fprintf(stderr, "CLIENT API: failed deleting line (delete_line())\n");
 			return;
 		}
 
@@ -2326,17 +2329,32 @@ void local_remove_line(File *file, Line *line) {
 		curr = curr->next;
 	}
 
-	// ici : aucune ligne supprimée
+	// arrivé ici : aucune ligne supprimée
 }
 
-void local_edit_line(Line *line, char *text) {
+void local_edit_line(File *file, Line *line, char *text) {
 	free(line->text);
 	line->text = strdup(text);
 
-	// TODO : envoi
+	if(modify_line(file->filename, text, line->id))
+		fprintf(stderr, "CLIENT API: failed modifying line (modify_line())\n");
 }
 
-File * local_open_local_file(char *filepath) {
+File * local_open_external_file(char *filename, const char *server_ip) {
+	if(open_external_file(server_ip, filename))
+		fprintf(stderr, "CLIENT API: failed opening external file \"%s\" (open_external_file())\n", filename);
+	
+	FileNode *file_node = session->files;
+	while(file_node) {
+		if(!strcmp(file_node->file->filename, filename))
+			return file_node->file;
+		file_node = file_node->next;
+	}
+
+	return NULL;
+}
+
+File * local_open_local_file(char *filepath, const char *server_ip) {
 	FILE *fp = fopen(filepath, "r"); // read only
 	
 	if(!fp) {
@@ -2357,6 +2375,25 @@ File * local_open_local_file(char *filepath) {
 
 	Line *curr_line = NULL;
 
+	// ajout du fichier au FileNode
+	FileNode *new_file_node = (FileNode *)malloc(sizeof(FileNode));
+	new_file_node->file = file_struct;
+	new_file_node->next = NULL;
+
+	if(!session->files)
+		session->files = new_file_node;
+	else {
+		FileNode *curr = session->files;
+		while(curr->next)
+			curr = curr->next;
+		curr->next = new_file_node;
+	}
+
+	session->file_count++;
+
+	if(open_local_file(server_ip, file_struct->filename))
+		fprintf(stderr, "CLIENT API: failed opening file \"%s\" (open_local_file())\n", file_struct->filename);
+
 	// Parsing du fichier (ligne par ligne)
 	char line_buffer[MAX_LINE_LENGTH];
 
@@ -2370,10 +2407,10 @@ File * local_open_local_file(char *filepath) {
 
 		// Insertion de la nouvelle ligne
 		if(!curr_line) {
-			local_add_line(file_struct, NULL, line_buffer, ADD_INSERT);
+			local_add_line(file_struct, NULL, line_buffer, ADD_INSERT, 1);
 			new_line = file_struct->lines->line;
 		} else {
-			local_add_line(file_struct, file_struct->lines, line_buffer, ADD_APPEND);
+			local_add_line(file_struct, file_struct->lines, line_buffer, ADD_APPEND, 1);
 			new_line = file_struct->lines->next->line;
 		}
 
@@ -2382,10 +2419,11 @@ File * local_open_local_file(char *filepath) {
 
 	fclose(fp);
 
-	// TODO : Envoi au serveur (nom fichier + id client)
 
 	return file_struct;
 }
+
+
 
 void local_save_file(File * file, const char * filepath) {
 	FILE *fp = fopen(filepath, "w"); // write only
@@ -2406,18 +2444,7 @@ void local_save_file(File * file, const char * filepath) {
 	// TODO : envoi
 }
 
-void local_close_file(File * file) {
-	LineNode *curr = file->lines;
-	while(curr) {
-		LineNode *next = curr->next;
-		free(curr->line->text);
-		free(curr->line);
-		free(curr);
-		curr = next;
-	}
-
-	free(file->filename);
-	free(file);
-
-	// TODO : envoi
+void local_close_file(File * file, const char *server_ip) {
+	if(close_file(server_ip, file->filename))
+		fprintf(stderr, "CLIENT API: failed closing file \"%s\" (close_file())\n", file->filename);
 }

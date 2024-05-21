@@ -1000,7 +1000,7 @@ void delete_line(int client_socket, json_object *object){
     }
     pthread_mutex_unlock(&line_mutex);
 
-    printf("Total Requete Supprimées: %d\n",locked_line_node->line->request_count);
+    printf("Lignes Supprimées\n");
 
     // Envoi d'un message de succès au client
     char response[1024];

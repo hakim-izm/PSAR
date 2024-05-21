@@ -1,8 +1,8 @@
 #include <gtk/gtk.h>
 
+#include "api/client.h"
 #include "fileeditor.h"
 #include "fileeditorwin.h"
-#include "api/client.h"
 
 #define MAX_FILES 8
 
@@ -164,7 +164,19 @@ void on_confirm_edit_clicked(GtkButton *button, FileEditorWindow *win)
 
 	char *text = gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
 
-	local_edit_line(selected_line, text);
+	const char *server_ip =	g_settings_get_string(win->settings, "ip");
+
+/*
+	line_locked = lock_line(server_ip, file_struct->filename, selected_line->id);
+	GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(win), GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_CANCEL, "This line is currently locked. Please wait.");
+	g_signal_connect(dialog, "response", G_CALLBACK(gtk_window_close), NULL);
+
+	while(line_locked || gtk_window_is_active(GTK_WINDOW(dialog))) {
+		gtk_window_present(GTK_WINDOW(dialog));
+	}
+*/
+
+	local_edit_line(file_struct, selected_line, text);
 
 	win->dirty = TRUE;
 	
@@ -232,7 +244,7 @@ void on_add_clicked(GtkButton *button, FileEditorWindow *win)
 
 	LineNode *selected_line_node = get_line_node_from_line(selected_line, file_struct);
 
-	local_add_line(file_struct, selected_line_node, "New line", ADD_INSERT);
+	local_add_line(file_struct, selected_line_node, "New line", ADD_INSERT, 0);
 
 	win->dirty = TRUE;
 
@@ -285,7 +297,6 @@ void on_edit_clicked(GtkButton *button, FileEditorWindow *win)
 	gtk_text_buffer_set_text(buffer, selected_line->text, -1);
 
 	GtkTextTag *tag = gtk_text_buffer_create_tag(buffer, NULL, NULL);
-	g_settings_bind(win->settings, "font", tag, "font", G_SETTINGS_BIND_DEFAULT);
 
 	GtkWidget *textview = gtk_widget_get_first_child(GTK_WIDGET(edition_grid));
 
@@ -323,7 +334,8 @@ void on_delete_clicked(GtkButton *button, FileEditorWindow *win)
 	if(selected_row)
 		remove_row_from_listbox(listbox, selected_row);
 
-	local_remove_line(file_struct, selected_line);
+	const char *server_ip = g_settings_get_string(win->settings, "ip");
+	local_delete_line(file_struct, selected_line, server_ip);
 	
 	win->dirty = TRUE;
 
@@ -391,14 +403,27 @@ void file_editor_window_close(FileEditorWindow *win)
 		listbox = GTK_LIST_BOX(gtk_widget_get_first_child(gtk_widget_get_first_child(visible_child)));
 
 		empty_listbox(listbox);
-		local_close_file(file_struct);
+
+		const char *server_ip =	g_settings_get_string(win->settings, "ip");
+
+		local_close_file(file_struct, server_ip);
 
 		visible_child = gtk_widget_get_next_sibling(visible_child);
 	}
 }
 
-void file_editor_window_open(FileEditorWindow *win, GFile *file)
+void file_editor_window_open(FileEditorWindow *win, GFile *file, File *f_struct)
 {
+	if(!file && !f_struct) {
+		fprintf(stderr, "CLIENT API: No file to open (file_editor_window_open())\n");
+		return;
+	}
+
+	if (file && f_struct) {
+		fprintf(stderr, "CLIENT API: Both file and file struct are not NULL (file_editor_window_open())\n");
+		return;
+	}
+
 	char *filepath;
 	GtkWidget *scrolled;
 	GtkTextBuffer *buffer;
@@ -427,9 +452,19 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file)
 
 	// FILE
 
-	filepath = g_file_get_path(file);
+	File *file_struct;
 
-	File *file_struct = local_open_local_file(filepath);
+	if(file && !f_struct){
+		filepath = g_file_get_path(file);
+		const char *server_ip =	g_settings_get_string(win->settings, "ip");
+
+		file_struct = local_open_local_file(filepath, server_ip);
+	} else if (!file && f_struct) {
+		file_struct = f_struct;
+	} else {
+		fprintf(stderr, "CLIENT API: Both file and file struct are NULL or defined in the same time (file_editor_window_open())\n");
+		return;
+	}
 
 	// LISTBOX STUFF
 

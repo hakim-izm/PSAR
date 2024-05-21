@@ -78,6 +78,7 @@ void connect_action(GtkButton *button, FileEditorConnect *connect) {
 		return;
 	}
 
+
 	// Sauvegarde de l'adresse IP dans les paramètres
 	// g_settings_set_string(connect->settings, "ip", ip_addr);
 	FileEditorWindow *win = FILE_EDITOR_WINDOW(gtk_window_get_transient_for(GTK_WINDOW(connect)));
@@ -87,9 +88,21 @@ void connect_action(GtkButton *button, FileEditorConnect *connect) {
 	const char *ip = g_settings_get_string(win->settings, "ip");
 	printf("[DEBUG] IP ADDRESS FROM PARENT: %s\n", ip);
 
+	// connexion au serveur
 
+	if(connexion(ip_addr)) {
+		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(connect),
+							GTK_DIALOG_MODAL,
+							GTK_MESSAGE_ERROR,
+							GTK_BUTTONS_OK,
+							"Connection failed. Please check the IP address and try again.");
+		gtk_window_set_title(GTK_WINDOW(dialog), "Connection failed");
+		gtk_window_present(GTK_WINDOW(dialog));
 
-	// TODO : connect to server
+		g_signal_connect(dialog, "response", G_CALLBACK(gtk_window_close), NULL);
+		
+		return;
+	}
 
 	gtk_window_close(GTK_WINDOW(connect));
 }

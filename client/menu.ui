@@ -13,6 +13,10 @@
 				<attribute name="action">app.open</attribute>
 			</item>
 			<item>
+				<attribute name="label" translatable="yes">_Open external file</attribute>
+				<attribute name="action">app.open_external</attribute>
+			</item>
+			<item>
 				<attribute name="label" translatable="yes">_Save</attribute>
 				<attribute name="action">app.save</attribute>
 			</item>

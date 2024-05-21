@@ -6,7 +6,7 @@ GLIB_COMPILE_RESOURCES = $(shell $(PKGCONFIG) --variable=glib_compile_resources 
 GLIB_COMPILE_SCHEMAS = $(shell $(PKGCONFIG) --variable=glib_compile_schemas gio-2.0)
 
 API_PATH = api
-SRC = fileeditorconnect.c fileeditorwin.c fileeditor.c main.c $(API_PATH)/client.c
+SRC = fileeditoropenexternal.c fileeditorconnect.c fileeditorwin.c fileeditor.c main.c $(API_PATH)/client.c
 BUILT_SRC = resources.c
 
 OBJS = $(BUILT_SRC:.c=.o) $(SRC:.c=.o)

@@ -1,10 +1,10 @@
 #include <gtk/gtk.h>
 
+#include "api/client.h"
 #include "fileeditor.h"
 #include "fileeditorwin.h"
 #include "fileeditorconnect.h"
-#include "api/client.h"
-
+#include "fileeditoropenexternal.h"
 
 
 G_DEFINE_TYPE(FileEditor, file_editor, GTK_TYPE_APPLICATION);
@@ -32,7 +32,7 @@ static void open_response (GtkDialog *dialog, int response) {
 		file = gtk_file_chooser_get_file(chooser);
 		win = gtk_window_get_transient_for(GTK_WINDOW(dialog));
 
-		file_editor_window_open(FILE_EDITOR_WINDOW(win), file);
+		file_editor_window_open(FILE_EDITOR_WINDOW(win), file, NULL);
 	}
 	gtk_window_destroy(GTK_WINDOW(dialog));
 }
@@ -53,6 +53,16 @@ static void open_activated (GSimpleAction *action, GVariant *parameter, gpointer
 	gtk_window_present(GTK_WINDOW(chooser));
 
 	g_signal_connect(chooser, "response", G_CALLBACK(open_response), win);
+
+}
+
+static void open_external_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
+	FileEditorOpenExternal *open_external;
+	GtkWindow *win;
+
+	win = gtk_application_get_active_window(GTK_APPLICATION(app));
+	open_external = file_editor_open_external_new(FILE_EDITOR_WINDOW(win));
+	gtk_window_present(GTK_WINDOW(open_external));
 
 }
 
@@ -129,8 +139,8 @@ static void quit_activated (GSimpleAction *action, GVariant *parameter, gpointer
 	// Close all FileEditorWindow
 	GList *windows;
 	windows = gtk_application_get_windows(GTK_APPLICATION(app));
+	FileEditorWindow *win = FILE_EDITOR_WINDOW(windows->data);
 	while(windows) {
-		FileEditorWindow *win = FILE_EDITOR_WINDOW(windows->data);
 		if(win->dirty){
 			GtkWidget *dialog;
 			dialog = gtk_message_dialog_new(GTK_WINDOW(windows->data),
@@ -150,6 +160,21 @@ static void quit_activated (GSimpleAction *action, GVariant *parameter, gpointer
 		windows = windows->next;
 	}
 
+	// Déconnexion du serveur
+
+	const char *server_ip =	g_settings_get_string(win->settings, "ip");
+	if(deconnexion(server_ip)) {
+		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(win),
+							GTK_DIALOG_MODAL,
+							GTK_MESSAGE_ERROR,
+							GTK_BUTTONS_OK,
+							"Disconnection failed. The editor will be closed.");
+		gtk_window_set_title(GTK_WINDOW(dialog), "Disconnection failed");
+		gtk_window_present(GTK_WINDOW(dialog));
+
+		g_signal_connect(dialog, "response", G_CALLBACK(gtk_window_close), NULL);
+	}
+
 	printf("bye\n");
 
 	g_application_quit (G_APPLICATION (app));
@@ -162,6 +187,7 @@ static void quit_activated (GSimpleAction *action, GVariant *parameter, gpointer
 static GActionEntry app_entries[] = {
 	{"connect", connect_activated, NULL, NULL, NULL},
 	{"open", open_activated, NULL, NULL, NULL},
+	{"open_external", open_external_activated, NULL, NULL, NULL},
 	{"save", save_activated, NULL, NULL, NULL},
 	{"save_as", save_as_activated, NULL, NULL, NULL},
 	{"quit", quit_activated, NULL, NULL, NULL}
@@ -192,7 +218,7 @@ static void file_editor_open(GApplication *app, GFile **files, int n_files, cons
 		win = file_editor_window_new(FILE_EDITOR(app));
 
 	for(int i=0; i<n_files; ++i)
-		file_editor_window_open(win, files[i]);
+		file_editor_window_open(win, files[i], NULL);
 
 	gtk_window_present(GTK_WINDOW(win));
 }
@@ -200,6 +226,7 @@ static void file_editor_open(GApplication *app, GFile **files, int n_files, cons
 static void file_editor_startup(GApplication *app) {
 	const char *connect_accels[2] = {"<Ctrl>K", NULL};
 	const char *open_accels[2] = {"<Ctrl>O", NULL};
+	const char *open_external_accels[2] = {"<Ctrl>I", NULL};
 	const char *save_accels[2] = {"<Ctrl>S", NULL};
 	const char *save_as_accels[2] = {"<Ctrl><Alt>S", NULL};
 	const char *quit_accels[2] = {"<Ctrl>Q", NULL};
@@ -217,6 +244,10 @@ static void file_editor_startup(GApplication *app) {
 	gtk_application_set_accels_for_action(GTK_APPLICATION(app),
 							      "app.open",
 							      open_accels);
+
+	gtk_application_set_accels_for_action(GTK_APPLICATION(app),
+							      "app.open_external",
+							      open_external_accels);
 
 	gtk_application_set_accels_for_action(GTK_APPLICATION(app),
 							      "app.save",

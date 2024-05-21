@@ -7,8 +7,10 @@
 #define MAX_LINE_LENGTH 	1024 // Longueur maximale d'une ligne (safe)
 #define ADD_APPEND 		0 // Mode d'ajout de ligne : ajout à la fin
 #define ADD_INSERT 		1 // Mode d'ajout de ligne : insertion
-#define SERVER_PORT		8080
-#define CLIENT_PORT		1234
+#define SERVER_PORT		8080 // Port du serveur
+
+// Variables globales
+// int line_locked = 1; // État de verrouillage de la ligne courante
 
 // Structure d'un client
 typedef struct Client {
@@ -89,9 +91,10 @@ void information_add_line(int socket, json_object *object); // Information de la
 void information_delete_line(int socket, json_object *object); // Information sur la ligne a supprimer.
 
 // Méthodes locales
-void local_add_line(File *file, LineNode *lines, const char *text, int mode); // Ajouter une ligne.
-void local_remove_line(File *file, Line *line); // Supprimer une ligne.
-void local_edit_line(Line *line, char *text); // Modifier une ligne.
-File * local_open_local_file(char *filepath); // Ouvrir un fichier local.
+void local_add_line(File *file, LineNode *lines, char *text, int mode, int open); // Ajouter une ligne.
+void local_delete_line(File *file, Line *line, const char *server_ip); // Supprimer une ligne.
+void local_edit_line(File *file, Line *line, char *text); // Modifier une ligne.
+File * local_open_external_file(char *filename, const char *server_ip); // Ouvrir un fichier externe.
+File * local_open_local_file(char *filepath, const char *server_ip); // Ouvrir un fichier local.
 void local_save_file(File * file, const char * filepath); // Sauvegarder un fichier.
-void local_close_file(File * file); // Fermer un fichier.
+void local_close_file(File * file, const char *server_ip); // Fermer un fichier.

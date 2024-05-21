@@ -27,4 +27,4 @@ void save_file_call(File * file, const char * filepath, FileEditorWindow *win);
 
 FileEditorWindow *file_editor_window_new (FileEditor *app);
 
-void file_editor_window_open(FileEditorWindow *win, GFile *file);
+void file_editor_window_open(FileEditorWindow *win, GFile *file, File *f_struct);

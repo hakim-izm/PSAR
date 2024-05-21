@@ -1,8 +1,8 @@
 #include <gtk/gtk.h>
 
 #include <pthread.h>
-#include "fileeditor.h"
 #include "api/client.h"
+#include "fileeditor.h"
 
 int main(int argc, char **argv){
         /*
@@ -15,7 +15,7 @@ int main(int argc, char **argv){
 	pthread_t thread;
 	if (pthread_create(&thread, NULL, initialize_client, NULL) != 0) {
 		perror("Thread creation failed");
-		EXIT_FAILURE;
+		return EXIT_FAILURE;
 	}
         
 	return g_application_run(G_APPLICATION(file_editor_new()), argc, argv);
