@@ -75,7 +75,7 @@ int deconnexion(const char *server_ip); // Déconnexion du serveur.
 int open_local_file(const char *server_ip, char *filename); // Ouverture d'un fichier local.
 int open_external_file(const char *server_ip, char *filename); // Ouverture d'un fichier distant.
 int close_file(const char *server_ip, char *filename); // Fermeture d'un fichier.
-int lock_line(const char *server_ip, char *filename, int line_id, pthread_cond_t *cond); // Verrouille une ligne.
+int lock_line(const char *server_ip, char *filename, int line_id); // Verrouille une ligne.
 int unlock_line(const char *server_ip, char *filename, int line_id); // Deverrouille une ligne.
 int add_line(char *filename, char *text, int line_before_id); // Ajouter une ligne.
 int delete_line(const char *server_ip, char *filename, int line_id); // Suppression une ligne.
@@ -98,3 +98,4 @@ File * local_open_external_file(char *filename, const char *server_ip); // Ouvri
 File * local_open_local_file(char *filepath, const char *server_ip); // Ouvrir un fichier local.
 void local_save_file(File * file, const char * filepath); // Sauvegarder un fichier.
 void local_close_file(File * file, const char *server_ip); // Fermer un fichier.
+int get_lock_cond(); // Obtenir la condition de verrouillage.

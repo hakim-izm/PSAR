@@ -281,6 +281,81 @@ void on_add_clicked(GtkButton *button, FileEditorWindow *win)
 
 }
 
+/*
+void on_edit_further_dialog_response(GtkDialog *dialog, gint response_id, gpointer data)
+{
+	FileEditorWindow *win = FILE_EDITOR_WINDOW(data);
+	if(response_id == GTK_RESPONSE_CANCEL) {
+		lock_state = 2;
+	} else {
+		lock_state = 0;
+	}
+}
+*/
+
+// Fonction appelée périodiquement pour vérifier lock_state
+gboolean check_lock_state(gpointer data) {
+	// printf("Checking lock state: %d - adresse: %p \n", lock_state, &lock_state);
+	// printf("Test lock_cond variable: %d - adresse: %p \n", *lock_cond, lock_cond);
+	GtkWidget *wait_dialog = GTK_WIDGET(data);
+	// Si lock_state est toujours 1, continuer à attendre
+	if (get_lock_cond() == 1) {
+		return TRUE; // Continue à appeler cette fonction
+	} else {
+		gtk_window_close(GTK_WINDOW(wait_dialog));
+		return FALSE; // Ne plus appeler cette fonction
+	}
+}
+
+void on_lock_resolved(GtkWidget *wait_dialog, int response_id, FileEditorWindow *win) {
+	int lock_state = get_lock_cond();
+
+	if(response_id == GTK_RESPONSE_CANCEL) {
+		lock_state = 2;
+	}
+
+	if (lock_state == 2) {
+		gtk_window_close(GTK_WINDOW(wait_dialog));
+		on_cancel_edit_clicked(NULL, win);
+		const char *server_ip = g_settings_get_string(win->settings, "serverip");
+		File *file_struct = g_object_get_data(G_OBJECT(gtk_stack_get_visible_child(GTK_STACK(win->stack))), "file_struct");
+		if (unlock_line(server_ip, file_struct->filename, selected_line->id) == -1) {
+			printf("Error during line unlock\n");
+		}
+		return;
+	}
+
+	// MODIFICATION DE L'INTERFACE
+	GtkWidget *stack = win->stack;
+	GtkWidget *visible_child = gtk_stack_get_visible_child(GTK_STACK(stack));
+	File *file_struct = g_object_get_data(G_OBJECT(visible_child), "file_struct");
+	GtkWidget *edition_grid = win->edition_grid;
+	GtkButton *cancel_edit_btn, *confirm_edit_btn;
+	GtkWidget *scrolled = gtk_widget_get_ancestor(GTK_WIDGET(visible_child), GTK_TYPE_SCROLLED_WINDOW);
+	GtkListBox *listbox = GTK_LIST_BOX(gtk_widget_get_first_child(gtk_widget_get_first_child(scrolled)));
+
+	gtk_list_box_set_selection_mode(listbox, GTK_SELECTION_NONE);
+	gtk_widget_set_visible(GTK_WIDGET(win->main_mode_grid), FALSE);
+	gtk_widget_set_visible(GTK_WIDGET(win->edition_grid), TRUE);
+
+	// TEXTVIEW
+	GtkTextBuffer *buffer = gtk_text_buffer_new(NULL);
+	gtk_text_buffer_set_text(buffer, selected_line->text, -1);
+	GtkTextTag *tag = gtk_text_buffer_create_tag(buffer, NULL, NULL);
+	GtkWidget *textview = gtk_widget_get_first_child(GTK_WIDGET(edition_grid));
+	gtk_text_view_set_buffer(GTK_TEXT_VIEW(textview), buffer);
+	g_object_unref(buffer);
+
+	cancel_edit_btn = GTK_BUTTON(gtk_grid_get_child_at(GTK_GRID(edition_grid), 1, 0));
+	confirm_edit_btn = GTK_BUTTON(gtk_grid_get_child_at(GTK_GRID(edition_grid), 2, 0));
+
+	g_signal_handlers_disconnect_by_func(cancel_edit_btn, G_CALLBACK(on_cancel_edit_clicked), win);
+	g_signal_handlers_disconnect_by_func(confirm_edit_btn, G_CALLBACK(on_confirm_edit_clicked), win);
+
+	g_signal_connect(cancel_edit_btn, "clicked", G_CALLBACK(on_cancel_edit_clicked), win);
+	g_signal_connect(confirm_edit_btn, "clicked", G_CALLBACK(on_confirm_edit_clicked), win);
+}
+
 void on_edit_clicked(GtkButton *button, FileEditorWindow *win)
 {
 	GtkWidget *stack = win->stack;
@@ -299,27 +374,38 @@ void on_edit_clicked(GtkButton *button, FileEditorWindow *win)
 
 	// ATTENTE DU LOCK
 
-	pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-	pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 	const char *server_ip = g_settings_get_string(win->settings, "serverip");
-	// pthread_t wait_thread;
 
-	int line_locked = lock_line(server_ip, file_struct->filename, selected_line->id, &cond);
-	pthread_mutex_lock(&mutex);
+	int line_locked = lock_line(server_ip, file_struct->filename, selected_line->id);
 	if(line_locked == -1) {
 		GtkWidget *err_dialog = gtk_message_dialog_new(GTK_WINDOW(win), GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE, "An error occured during the edition.");
 		gtk_window_present(GTK_WINDOW(err_dialog));
 		g_signal_connect(err_dialog, "response", G_CALLBACK(gtk_window_close), NULL);
-		pthread_mutex_unlock(&mutex);
 		return;
 	}
-	GtkWidget *wait_dialog = gtk_message_dialog_new(GTK_WINDOW(win), GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, "This line is currently locked. Please wait.");
-	if (line_locked == 2) {
-		gtk_window_present(GTK_WINDOW(wait_dialog));
-		// pthread_cond_wait(&cond, &mutex);
-	}
+	GtkWidget *wait_dialog = gtk_message_dialog_new(GTK_WINDOW(win), GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_CANCEL, "This line is currently locked. Please wait.");
+	g_signal_connect(wait_dialog, "response", G_CALLBACK(on_lock_resolved), win);
 
-	pthread_mutex_unlock(&mutex);
+	gtk_window_present(GTK_WINDOW(wait_dialog));
+	// g_signal_connect(wait_dialog, "response", G_CALLBACK(on_lock_resolved), win);
+	// while (lock_state) {
+	// }
+
+	// Ajout d'un timeout pour vérifier lock_state périodiquement
+	g_timeout_add(100, check_lock_state, wait_dialog); // Vérifie toutes les 100 ms
+
+
+	// gtk_window_close(GTK_WINDOW(wait_dialog));
+
+	/*
+
+	if(lock_state == 2) {
+		if(unlock_line(server_ip, file_struct->filename, selected_line->id) == -1) {
+			printf("Error during line unlock\n");
+		}
+		on_cancel_edit_clicked(NULL, win);
+		return;
+	}
 
 	// MODIFICATION DE L'INTERFACE
 
@@ -352,8 +438,7 @@ void on_edit_clicked(GtkButton *button, FileEditorWindow *win)
 
 	g_signal_connect(cancel_edit_btn, "clicked", G_CALLBACK(on_cancel_edit_clicked), win);
 	g_signal_connect(confirm_edit_btn, "clicked", G_CALLBACK(on_confirm_edit_clicked), win);
-
-
+	*/
 }
 
 void on_delete_clicked(GtkButton *button, FileEditorWindow *win)

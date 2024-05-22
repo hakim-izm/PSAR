@@ -20,7 +20,7 @@ int client_fd;
 int UID;
 int CLIENT_PORT;
 char * IP_ADD = "localhost";
-pthread_cond_t *lock_cond;
+int lock_cond;
 
 /*
  * METHODES COMMUNICATION / SYNCHRONISATION
@@ -135,7 +135,6 @@ void *receive_request(void *args){
     char buffer[1024]= {0};
     ssize_t bytes_read = read(new_socket, buffer , sizeof(buffer));
     if (bytes_read < 0) {
-	printf("bytes_read : %ld\n",bytes_read);
         perror("Error reading data");
         close(new_socket);
         return NULL;
@@ -956,7 +955,7 @@ int close_file(const char *server_ip, char *filename){
 
 
 //______________________________________________________________________________________________________________________________________________________
-int lock_line(const char *server_ip, char *filename, int line_id, pthread_cond_t *cond){
+int lock_line(const char *server_ip, char *filename, int line_id){
     // Création de la socket
     int client_socket;
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -1026,10 +1025,11 @@ int lock_line(const char *server_ip, char *filename, int line_id, pthread_cond_t
 
     if(strcmp(response, success) == 0){
         // Verrouillage de la ligne Réussie
+	lock_cond = 0;
         return 0;
     }else if(strcmp(response, waiting) == 0){
         // En Attente du Verrouillage ...
- 	lock_cond = cond;
+ 	lock_cond = 1;
         return 2;
     }
     
@@ -1425,7 +1425,7 @@ int delete_line(const char *server_ip, char *filename, int line_id){
         }
         pthread_mutex_unlock(&file_mutex);
 
-        printf("La ligne avec l'ID %d a été supprimer dans le fichier %s. Il y a %d de ligne dans le fichier\n",line_id, filename, target_file->line_count);
+        printf("La ligne avec l'ID %d a été supprimée dans le fichier %s.\n",line_id, filename);
         return 0;
     }
         
@@ -1498,11 +1498,6 @@ int modify_line(char *filename, char *text, int line_id){
     pthread_mutex_lock(&file_mutex);
     ClientNode *current_client_node = target_file->clients;
     while (current_client_node != NULL) {
-
-	printf("avant address\n");
-	printf("IP ADDRESS: %s\n", current_client_node->client->ip_address);
-	printf("apreès address\n");
-
         // Allocation et initialisation de la structure des arguments
         struct ThreadArgs *args = malloc(sizeof(struct ThreadArgs));
         args->obj = json_obj_clients;
@@ -1533,7 +1528,7 @@ int modify_line(char *filename, char *text, int line_id){
         }
     }
 
-    printf("La ligne avec l'ID %d a été modifié dans le fichier %s\n", line_id, filename);
+    printf("La ligne avec l'ID %d a été modifiée dans le fichier %s\n", line_id, filename);
     return 0;
 }
 
@@ -1564,7 +1559,6 @@ void *send_all(void *arg) {
     server_address.sin_port = htons(client2->port);
 
     // Convertit l'adresse IPv4 et l'assigne à la structure sockaddr_in
-    printf("IP Address : %s\n", client2->ip_address);
     if (inet_pton(AF_INET, client2->ip_address, &server_address.sin_addr) <= 0) {
         perror("Invalid address/ Address not supported");
         exit(EXIT_FAILURE);
@@ -1881,9 +1875,7 @@ void permission_lock_line(int socket, json_object *object){
 
     // J'ai le verroue sur une ligne
 
-    pthread_cond_signal(lock_cond);
-
-//     line_locked = 0;
+    lock_cond = 0;
 }
 
 
@@ -2055,7 +2047,7 @@ void information_modification_line(int socket, json_object *object){
     while (current_line_node != NULL) {
         if (current_line_node->line->id == line_id) {
             // Modification du texte de la ligne
-            free(current_line_node->line->text);
+	    free(current_line_node->line->text);
             current_line_node->line->text = strdup(text);
             break;
         }
@@ -2187,7 +2179,7 @@ void information_add_line(int socket, json_object *object){
         current_line_node->next = new_line_node;
         target_file->line_count++;
 
-        printf("La ligne avec l'ID %d a été ajouter dans le fichier %s.\n",line_id, filename);
+        printf("La ligne avec l'ID %d a été ajoutée dans le fichier %s.\n",line_id, filename);
 }
 
 
@@ -2243,15 +2235,18 @@ void information_delete_line(int socket, json_object *object){
     while (current_line_node != NULL) {
         if (current_line_node->line->id == line_id) {
             // Suppression de la ligne
-            if (prev_line_node != NULL) {
-                prev_line_node->next = current_line_node->next;
-                free(current_line_node->line->text);
-                free(current_line_node->line);
-                free(current_line_node);
-            } else {
-                // La ligne à supprimer est la première dans la liste
-                current_line_node->line->text="";
-            }
+	    if (prev_line_node == NULL && current_line_node->next == NULL){
+	    	// La ligne à supprimer est la première dans la liste
+	    	current_line_node->line->text=strdup("");
+	    } else {
+		if(prev_line_node)
+	    		prev_line_node->next = current_line_node->next;
+		else
+			target_file->lines = current_line_node->next;
+	    	free(current_line_node->line->text);
+	    	free(current_line_node->line);
+	    	free(current_line_node);
+	    }
             break;
         }
         prev_line_node = current_line_node;
@@ -2348,12 +2343,13 @@ void local_delete_line(File *file, Line *line, const char *server_ip) {
 				file->lines = curr->next;
 			}
 
+			if(delete_line(server_ip, file->filename, line->id) == -1)
+				fprintf(stderr, "CLIENT API: failed deleting line (delete_line())\n");
+
 			free(curr->line->text);
 			free(curr->line);
 			free(curr);
 
-			if(delete_line(server_ip, file->filename, line->id) == -1)
-				fprintf(stderr, "CLIENT API: failed deleting line (delete_line())\n");
 			return;
 		}
 
@@ -2479,4 +2475,8 @@ void local_save_file(File * file, const char * filepath) {
 void local_close_file(File * file, const char *server_ip) {
 	if(close_file(server_ip, file->filename))
 		fprintf(stderr, "CLIENT API: failed closing file \"%s\" (close_file())\n", file->filename);
+}
+
+int get_lock_cond() {
+	return lock_cond;
 }

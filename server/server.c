@@ -45,7 +45,6 @@ void initialize_server() {
 
     int server_fd;
     struct sockaddr_in address;
-    int addrlen = sizeof(address);
 
     // Création de la socket
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -171,6 +170,8 @@ void *receive_request_from_client(void *args) {
     }
 
     close(client_socket); // Fermeture de la socket du client après traitement
+
+    return NULL;
 }
 
 

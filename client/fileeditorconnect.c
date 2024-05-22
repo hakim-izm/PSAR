@@ -116,11 +116,6 @@ void connect_action(GtkButton *button, FileEditorConnect *connect) {
 
 static void file_editor_connect_init (FileEditorConnect *connect) {
 	gtk_widget_init_template(GTK_WIDGET(connect));
-	// connect->settings = g_settings_new("com.psar.fileeditor");
-
-	// g_settings_bind(connect->settings, "ip",
-	// 		connect->ip, "text",
-	// 		G_SETTINGS_BIND_DEFAULT);
 
 	g_signal_connect_swapped(connect->cancelBtn, "clicked", G_CALLBACK(gtk_window_close), GTK_WINDOW(connect));
 
