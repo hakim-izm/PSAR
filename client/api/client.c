@@ -19,7 +19,8 @@ Client *client;
 int client_fd;  
 int UID;
 int CLIENT_PORT;
-const char * IP_ADD = "localhost";
+char * IP_ADD = "localhost";
+pthread_cond_t *lock_cond;
 
 /*
  * METHODES COMMUNICATION / SYNCHRONISATION
@@ -111,6 +112,7 @@ void *initialize_client() {
             exit(EXIT_FAILURE);
         }
 
+	printf("Connection Accepted\n");
         pthread_t request_thread;
         if (pthread_create(&request_thread, NULL, receive_request, &new_socket) != 0) {
             perror("Thread creation failed");
@@ -134,6 +136,7 @@ void *receive_request(void *args){
     char buffer[1024]= {0};
     ssize_t bytes_read = read(new_socket, buffer , sizeof(buffer));
     if (bytes_read < 0) {
+	printf("bytes_read : %ld\n",bytes_read);
         perror("Error reading data");
         close(new_socket);
         return NULL;
@@ -163,12 +166,12 @@ void *receive_request(void *args){
                 break;
             case 3:
                 // Autorisation de Verrouiller d'une ligne après Attente
-                printf("Autorisation de Verrouiller d'une ligne après Attente\n");
+                printf("-> Autorisation de Verrouiller d'une ligne après Attente\n");
                 permission_lock_line(new_socket, json_obj);
                 break;
             case 4:
                 // Demande de fermeture d'un fichier distant
-                printf("Demande de fermeture d'un fichier distant\n");
+                printf("-> Demande de fermeture d'un fichier distant\n");
                 ask_close_file(new_socket, json_obj);
                 break;
             case 5:
@@ -183,7 +186,7 @@ void *receive_request(void *args){
                 break;
             case 7:
                 // Information sur la ligne a supprimer
-                printf("Information sur la ligne a supprimer\n");
+                printf("-> Information sur la ligne a supprimer\n");
                 information_delete_line(new_socket, json_obj);
                 break;
             default:
@@ -205,7 +208,11 @@ void *receive_request(void *args){
 
 
 //______________________________________________________________________________________________________________________________________________________
-int connexion(const char *server_ip){
+int connexion(const char *server_ip, const char *client_ip){
+    // Définition de l'adresse IP du client
+    IP_ADD = strdup(client_ip);
+    client->ip_address = IP_ADD;
+
     // Création de la socket
     int client_socket;
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -523,7 +530,7 @@ int open_external_file(const char *server_ip, char *filename){
         host_address.sin_port = htons(host_port);
 
         // Convertit l'adresse IPv4 et l'assigne à la structure sockaddr_in
-        if (inet_pton(AF_INET, /*host_ip*/ "192.168.122.1" , &host_address.sin_addr) <= 0) {
+        if (inet_pton(AF_INET, host_ip, &host_address.sin_addr) <= 0) {
             perror("Invalid address/ Address not supported");
             exit(EXIT_FAILURE);
         }
@@ -950,7 +957,7 @@ int close_file(const char *server_ip, char *filename){
 
 
 //______________________________________________________________________________________________________________________________________________________
-int lock_line(const char *server_ip, char *filename, int line_id){
+int lock_line(const char *server_ip, char *filename, int line_id, pthread_cond_t *cond){
     // Création de la socket
     int client_socket;
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
@@ -1023,6 +1030,7 @@ int lock_line(const char *server_ip, char *filename, int line_id){
         return 0;
     }else if(strcmp(response, waiting) == 0){
         // En Attente du Verrouillage ...
+ 	lock_cond = cond;
         return 2;
     }
     
@@ -1492,6 +1500,10 @@ int modify_line(char *filename, char *text, int line_id){
     ClientNode *current_client_node = target_file->clients;
     while (current_client_node != NULL) {
 
+	printf("avant address\n");
+	printf("IP ADDRESS: %s\n", current_client_node->client->ip_address);
+	printf("apreès address\n");
+
         // Allocation et initialisation de la structure des arguments
         struct ThreadArgs *args = malloc(sizeof(struct ThreadArgs));
         args->obj = json_obj_clients;
@@ -1536,7 +1548,7 @@ void *send_all(void *arg) {
     struct ThreadArgs *args = (struct ThreadArgs *)arg;
     // Extraire les informations des arguments
     json_object *object = args->obj;
-    Client *client = args->client;
+    Client *client2 = args->client;
     File *file = args->file;
     int num = args->num;
 
@@ -1550,10 +1562,11 @@ void *send_all(void *arg) {
     // Configuration de la structure sockaddr_in
     struct sockaddr_in server_address;
     server_address.sin_family = AF_INET;
-    server_address.sin_port = htons(client->port);
+    server_address.sin_port = htons(client2->port);
 
     // Convertit l'adresse IPv4 et l'assigne à la structure sockaddr_in
-    if (inet_pton(AF_INET, client->ip_address, &server_address.sin_addr) <= 0) {
+    printf("IP Address : %s\n", client2->ip_address);
+    if (inet_pton(AF_INET, client2->ip_address, &server_address.sin_addr) <= 0) {
         perror("Invalid address/ Address not supported");
         exit(EXIT_FAILURE);
     }
@@ -1728,6 +1741,8 @@ void ask_information_external_file(int socket, json_object *object){
     }
     new_client_node->client = new_client;
 
+    new_client_node->next = NULL;
+
     if (target_file->clients != NULL) {
         new_client_node->next = target_file->clients;
     }
@@ -1861,6 +1876,8 @@ void permission_lock_line(int socket, json_object *object){
     printf("J'ai maintenant verrouilé la ligne %d du fichier %s\n",line_id,filename);
 
     // J'ai le verroue sur une ligne
+
+    pthread_cond_signal(lock_cond);
 
 //     line_locked = 0;
 }
@@ -2111,7 +2128,7 @@ void information_add_line(int socket, json_object *object){
         json_object *json_obj = json_object_new_object();
         char response[1024];
         snprintf(response, sizeof(response), "Success Add Line %s", filename);
-        json_object_object_add(json_obj, response, json_object_new_string(text));
+        json_object_object_add(json_obj, "response", json_object_new_string(/*text*/response));
         json_object_object_add(json_obj, "line_id", json_object_new_int(line_id));
         const char *json_str = json_object_to_json_string(json_obj);
         if (write(socket, json_str, strlen(json_str)) == -1) {
@@ -2157,7 +2174,7 @@ void information_add_line(int socket, json_object *object){
         new_line_node->next = NULL;
 
         LineNode *current_line_node = target_file->lines;
-        while (current_line_node->next != NULL && current_line_node->line->id != line_before_id) {
+        while (current_line_node->line->id != line_before_id) {
             current_line_node = current_line_node->next;
         }
 
@@ -2166,7 +2183,7 @@ void information_add_line(int socket, json_object *object){
         current_line_node->next = new_line_node;
         target_file->line_count++;
 
-        printf("La ligne avec l'ID %d a été ajouter dans le fichier %s. Il y a %d de ligne dans le fichier\n",line_id, filename, target_file->line_count);
+        printf("La ligne avec l'ID %d a été ajouter dans le fichier %s.\n",line_id, filename);
 }
 
 

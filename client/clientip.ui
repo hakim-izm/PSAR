@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
-	<template class="FileEditorConnect" parent="GtkDialog">
-		<property name="title" translatable="yes">Connect to server</property>
+	<template class="FileEditorClientIP" parent="GtkDialog">
+		<property name="title" translatable="yes">Set client IP</property>
 		<property name="resizable">0</property>
 		<property name="modal">1</property>
 		<child internal-child="content_area">
@@ -15,10 +15,10 @@
 						<property name="row-spacing">12</property>
 						<property name="column-spacing">12</property>
 						<child>
-							<object class="GtkLabel" id="serveriplabel">
-								<property name="label" translatable="yes">_Server IP address:</property>
+							<object class="GtkLabel" id="clientiplabel">
+								<property name="label" translatable="yes">_Client IP address:</property>
 								<property name="use-underline">1</property>
-								<property name="mnemonic-widget">serverip</property>
+								<property name="mnemonic-widget">clientip</property>
 								<property name="xalign">1</property>
 								<layout>
 									<property name="column">0</property>
@@ -27,7 +27,7 @@
 							</object>
 						</child>
 						<child>
-							<object class="GtkEntry" id="serverip">
+							<object class="GtkEntry" id="clientip">
 								<property name="editable">1</property>
 								<layout>
 									<property name="column">1</property>

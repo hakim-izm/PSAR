@@ -5,6 +5,7 @@
 #include "fileeditorwin.h"
 #include "fileeditorconnect.h"
 #include "fileeditoropenexternal.h"
+#include "fileeditorclientip.h"
 
 
 G_DEFINE_TYPE(FileEditor, file_editor, GTK_TYPE_APPLICATION);
@@ -12,6 +13,15 @@ G_DEFINE_TYPE(FileEditor, file_editor, GTK_TYPE_APPLICATION);
 /*
  * ACTIONS CALLBACKS
  */
+
+static void clientip_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
+	FileEditorClientIP *clientip;
+	GtkWindow *win;
+
+	win = gtk_application_get_active_window(GTK_APPLICATION(app));
+	clientip = file_editor_clientip_new(FILE_EDITOR_WINDOW(win));
+	gtk_window_present(GTK_WINDOW(clientip));
+}
 
 static void connect_activated (GSimpleAction *action, GVariant *parameter, gpointer app) {
 	FileEditorConnect *connect;
@@ -162,7 +172,7 @@ static void quit_activated (GSimpleAction *action, GVariant *parameter, gpointer
 
 	// Déconnexion du serveur
 
-	const char *server_ip =	g_settings_get_string(win->settings, "ip");
+	const char *server_ip =	g_settings_get_string(win->settings, "serverip");
 	if(deconnexion(server_ip)) {
 		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(win),
 							GTK_DIALOG_MODAL,
@@ -185,6 +195,7 @@ static void quit_activated (GSimpleAction *action, GVariant *parameter, gpointer
  */
 
 static GActionEntry app_entries[] = {
+	{"clientip", clientip_activated, NULL, NULL, NULL},
 	{"connect", connect_activated, NULL, NULL, NULL},
 	{"open", open_activated, NULL, NULL, NULL},
 	{"open_external", open_external_activated, NULL, NULL, NULL},
@@ -224,6 +235,7 @@ static void file_editor_open(GApplication *app, GFile **files, int n_files, cons
 }
 
 static void file_editor_startup(GApplication *app) {
+	const char *clientip_accels[2] = {"<Ctrl>J", NULL};
 	const char *connect_accels[2] = {"<Ctrl>K", NULL};
 	const char *open_accels[2] = {"<Ctrl>O", NULL};
 	const char *open_external_accels[2] = {"<Ctrl>I", NULL};
@@ -236,6 +248,10 @@ static void file_editor_startup(GApplication *app) {
 	g_action_map_add_action_entries(G_ACTION_MAP(app),
 					app_entries, G_N_ELEMENTS(app_entries),
 					app);
+
+	gtk_application_set_accels_for_action(GTK_APPLICATION(app),
+							      "app.clientip",
+							      clientip_accels);
 
 	gtk_application_set_accels_for_action(GTK_APPLICATION(app),
 							      "app.connect",

@@ -27,7 +27,7 @@ void open_external_action(GtkButton *button, FileEditorOpenExternal *open_extern
 	FileEditorWindow *win = FILE_EDITOR_WINDOW(gtk_window_get_transient_for(GTK_WINDOW(open_external)));
 
 	char *filename = (char *)gtk_editable_get_text(GTK_EDITABLE(open_external->filename));
-	const char *server_ip = g_settings_get_string(win->settings, "ip");
+	const char *server_ip = g_settings_get_string(win->settings, "serverip");
 
 	File *file_struct = local_open_external_file(filename, server_ip);
 

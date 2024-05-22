@@ -82,6 +82,17 @@
 										</layout>
 									</object>
 								</child>
+								<child>
+									<object class="GtkButton" id="refresh_btn">
+										<!-- <property name="icon-name">edit-delete</property> -->
+										<property name="label" translatable="yes">Refresh</property>
+										<property name="visible">false</property>
+										<layout>
+											<property name="column">4</property>
+											<property name="row">0</property>
+										</layout>
+									</object>
+								</child>
 							</object>
 						</child>
 						<child>

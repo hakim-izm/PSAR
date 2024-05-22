@@ -84,6 +84,7 @@ void initialize_server() {
             exit(EXIT_FAILURE);
         }
 
+	printf("Connection Accepted\n");
         pthread_t client_thread;
         if (pthread_create(&client_thread, NULL, receive_request_from_client, &new_socket) != 0) {
             perror("Thread creation failed");
@@ -862,6 +863,8 @@ void unlock_line(int client_socket, json_object *object) {
                 ClientNode *current_client_node = session->clients;
                 while (current_client_node != NULL) {
                     if (current_client_node->client->uid == next_request->client_id) {
+			printf("(unlock_line) IP Address: %s\n", current_client_node->client->ip_address);
+			printf("(unlock_line) Port: %d\n", current_client_node->client->port);
                         // Trouvé le client associé à la première requête
                         // Mettre à jour les informations de la ligne verrouillée
                         current_locked_line_node->line->client_id = next_request->client_id;
@@ -903,7 +906,7 @@ void unlock_line(int client_socket, json_object *object) {
                         const char *json_str = json_object_to_json_string(json_obj);
 
                         // Envoi des informations du client au serveur
-                        if (write(client_socket, json_str, strlen(json_str)) == -1) {
+                        if (write(new_client_socket, json_str, strlen(json_str)) == -1) {
                             perror("Error sending client information to server");
                             exit(EXIT_FAILURE);
                         }

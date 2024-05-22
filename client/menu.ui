@@ -3,6 +3,10 @@
 	<menu id="menu">
 		<section>
 			<item>
+				<attribute name="label" translatable="yes">_Set client IP address</attribute>
+				<attribute name="action">app.clientip</attribute>
+			</item>
+			<item>
 				<attribute name="label" translatable="yes">_Connect to server</attribute>
 				<attribute name="action">app.connect</attribute>
 			</item>

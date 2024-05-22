@@ -8,7 +8,7 @@ struct _FileEditorConnect {
 	GtkDialog parent;
 
 	// GSettings *settings;
-	GtkEntry *ip;
+	GtkEntry *serverip;
 	GtkButton *cancelBtn;
 	GtkButton *okBtn;
 };
@@ -19,7 +19,7 @@ G_DEFINE_TYPE (FileEditorConnect, file_editor_connect, GTK_TYPE_DIALOG)
  * FUNCTIONS
  */
 // Fonction pour vérifier la validité d'une adresse IP
-gboolean is_valid_ip(const char *ip) {
+static gboolean is_valid_ip(const char *ip) {
 	if (ip == NULL) return FALSE;
 
 	int num, dots = 0;
@@ -60,7 +60,7 @@ gboolean is_valid_ip(const char *ip) {
 
 void connect_action(GtkButton *button, FileEditorConnect *connect) {
 	
-	const char *ip_addr = gtk_editable_get_text(GTK_EDITABLE(connect->ip));
+	const char *ip_addr = gtk_editable_get_text(GTK_EDITABLE(connect->serverip));
 
 	printf("[DEBUG] IP ADDRESS: %s\n", ip_addr);
 
@@ -82,15 +82,18 @@ void connect_action(GtkButton *button, FileEditorConnect *connect) {
 	// Sauvegarde de l'adresse IP dans les paramètres
 	// g_settings_set_string(connect->settings, "ip", ip_addr);
 	FileEditorWindow *win = FILE_EDITOR_WINDOW(gtk_window_get_transient_for(GTK_WINDOW(connect)));
-	g_settings_set_string(win->settings, "ip", ip_addr);
+	g_settings_set_string(win->settings, "serverip", ip_addr);
 
 	// DEBUG : affichage de l'adresse IP depuis les paramètres du parent
-	const char *ip = g_settings_get_string(win->settings, "ip");
+	const char *ip = g_settings_get_string(win->settings, "serverip");
 	printf("[DEBUG] IP ADDRESS FROM PARENT: %s\n", ip);
 
-	// connexion au serveur
+	// récupération de l'adresse IP du client
+	const char *client_ip = g_settings_get_string(win->settings, "clientip");
+	
 
-	if(connexion(ip_addr)) {
+	// connexion au serveur
+	if(connexion(ip_addr, client_ip)) {
 		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(connect),
 							GTK_DIALOG_MODAL,
 							GTK_MESSAGE_ERROR,
@@ -139,7 +142,7 @@ static void file_editor_connect_class_init(FileEditorConnectClass *class) {
 	G_OBJECT_CLASS (class)->dispose = file_editor_connect_dispose;
 
 	gtk_widget_class_set_template_from_resource(GTK_WIDGET_CLASS(class), "/com/psar/fileeditor/connect.ui");
-	gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), FileEditorConnect, ip);
+	gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), FileEditorConnect, serverip);
 	gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), FileEditorConnect, cancelBtn);
 	gtk_widget_class_bind_template_child(GTK_WIDGET_CLASS(class), FileEditorConnect, okBtn);
 

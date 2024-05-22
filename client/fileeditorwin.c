@@ -1,4 +1,5 @@
 #include <gtk/gtk.h>
+#include <pthread.h>
 
 #include "api/client.h"
 #include "fileeditor.h"
@@ -142,6 +143,12 @@ void on_cancel_edit_clicked(GtkButton *button, FileEditorWindow *win)
 	GtkWidget *scrolled = gtk_widget_get_ancestor(GTK_WIDGET(visible_child), GTK_TYPE_SCROLLED_WINDOW);
 	GtkListBox *listbox = GTK_LIST_BOX(gtk_widget_get_first_child(gtk_widget_get_first_child(scrolled)));
 
+	const char *server_ip =	g_settings_get_string(win->settings, "serverip");
+
+	if(unlock_line(server_ip, file_struct->filename, selected_line->id) == -1) {
+		printf("Error during line unlock\n");
+	}
+
 	gtk_widget_set_visible(GTK_WIDGET(win->main_mode_grid), TRUE);
 	gtk_widget_set_visible(GTK_WIDGET(win->edition_grid), FALSE);
 
@@ -164,7 +171,7 @@ void on_confirm_edit_clicked(GtkButton *button, FileEditorWindow *win)
 
 	char *text = gtk_text_buffer_get_text(buffer, &start, &end, FALSE);
 
-	const char *server_ip =	g_settings_get_string(win->settings, "ip");
+	const char *server_ip =	g_settings_get_string(win->settings, "serverip");
 
 /*
 	line_locked = lock_line(server_ip, file_struct->filename, selected_line->id);
@@ -177,6 +184,12 @@ void on_confirm_edit_clicked(GtkButton *button, FileEditorWindow *win)
 */
 
 	local_edit_line(file_struct, selected_line, text);
+
+	printf("before unlock\n");
+
+	if(unlock_line(server_ip, file_struct->filename, selected_line->id) == -1) {
+		printf("Error during line unlock\n");
+	}
 
 	win->dirty = TRUE;
 	
@@ -284,6 +297,32 @@ void on_edit_clicked(GtkButton *button, FileEditorWindow *win)
 		return;
 	}
 
+	// ATTENTE DU LOCK
+
+	pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+	pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+	const char *server_ip = g_settings_get_string(win->settings, "serverip");
+	// pthread_t wait_thread;
+
+	int line_locked = lock_line(server_ip, file_struct->filename, selected_line->id, &cond);
+	pthread_mutex_lock(&mutex);
+	if(line_locked == -1) {
+		GtkWidget *err_dialog = gtk_message_dialog_new(GTK_WINDOW(win), GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_CLOSE, "An error occured during the edition.");
+		gtk_window_present(GTK_WINDOW(err_dialog));
+		g_signal_connect(err_dialog, "response", G_CALLBACK(gtk_window_close), NULL);
+		pthread_mutex_unlock(&mutex);
+		return;
+	}
+	GtkWidget *wait_dialog = gtk_message_dialog_new(GTK_WINDOW(win), GTK_DIALOG_MODAL, GTK_MESSAGE_ERROR, GTK_BUTTONS_NONE, "This line is currently locked. Please wait.");
+	if (line_locked == 2) {
+		gtk_window_present(GTK_WINDOW(wait_dialog));
+		// pthread_cond_wait(&cond, &mutex);
+	}
+
+	pthread_mutex_unlock(&mutex);
+
+	// MODIFICATION DE L'INTERFACE
+
 	gtk_list_box_set_selection_mode(listbox, GTK_SELECTION_NONE);
 
 	gtk_widget_set_visible(GTK_WIDGET(win->main_mode_grid), FALSE);
@@ -307,6 +346,9 @@ void on_edit_clicked(GtkButton *button, FileEditorWindow *win)
 	// BUTTONS
 	cancel_edit_btn = GTK_BUTTON(gtk_grid_get_child_at(GTK_GRID(edition_grid), 1, 0));
 	confirm_edit_btn = GTK_BUTTON(gtk_grid_get_child_at(GTK_GRID(edition_grid), 2, 0));
+	
+	g_signal_handlers_disconnect_by_func(cancel_edit_btn, G_CALLBACK(on_cancel_edit_clicked), win);
+	g_signal_handlers_disconnect_by_func(confirm_edit_btn, G_CALLBACK(on_confirm_edit_clicked), win);
 
 	g_signal_connect(cancel_edit_btn, "clicked", G_CALLBACK(on_cancel_edit_clicked), win);
 	g_signal_connect(confirm_edit_btn, "clicked", G_CALLBACK(on_confirm_edit_clicked), win);
@@ -334,7 +376,7 @@ void on_delete_clicked(GtkButton *button, FileEditorWindow *win)
 	if(selected_row)
 		remove_row_from_listbox(listbox, selected_row);
 
-	const char *server_ip = g_settings_get_string(win->settings, "ip");
+	const char *server_ip = g_settings_get_string(win->settings, "serverip");
 	local_delete_line(file_struct, selected_line, server_ip);
 	
 	win->dirty = TRUE;
@@ -356,6 +398,18 @@ void on_delete_clicked(GtkButton *button, FileEditorWindow *win)
 	// empty_listbox(listbox);
 	// fill_listbox(listbox, file_struct);
 
+}
+
+void on_refresh_clicked(GtkButton *button, FileEditorWindow *win)
+{
+	GtkWidget *stack = win->stack;
+	GtkWidget *visible_child = gtk_stack_get_visible_child(GTK_STACK(stack));
+	File *file_struct = g_object_get_data(G_OBJECT(visible_child), "file_struct");
+	GtkWidget *scrolled = gtk_widget_get_ancestor(GTK_WIDGET(visible_child), GTK_TYPE_SCROLLED_WINDOW);
+	GtkListBox *listbox = GTK_LIST_BOX(gtk_widget_get_first_child(gtk_widget_get_first_child(scrolled)));
+
+	empty_listbox(listbox);
+	fill_listbox(listbox, file_struct);
 }
 
 /*
@@ -404,7 +458,7 @@ void file_editor_window_close(FileEditorWindow *win)
 
 		empty_listbox(listbox);
 
-		const char *server_ip =	g_settings_get_string(win->settings, "ip");
+		const char *server_ip =	g_settings_get_string(win->settings, "serverip");
 
 		local_close_file(file_struct, server_ip);
 
@@ -430,7 +484,7 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file, File *f_struct)
 	char *contents;
 	gsize length;
 	GtkTextTag *tag;
-	GtkButton *add_btn, *edit_btn, *delete_btn;
+	GtkButton *add_btn, *edit_btn, *delete_btn, *refresh_btn;
 
 	// FILEEDITORWINDOW
 	g_signal_connect(win, "destroy", G_CALLBACK(file_editor_window_close), NULL);
@@ -441,14 +495,17 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file, File *f_struct)
 	add_btn = GTK_BUTTON(gtk_grid_get_child_at(GTK_GRID(win->main_mode_grid), 1, 0));
 	edit_btn = GTK_BUTTON(gtk_grid_get_child_at(GTK_GRID(win->main_mode_grid), 2, 0));
 	delete_btn = GTK_BUTTON(gtk_grid_get_child_at(GTK_GRID(win->main_mode_grid), 3, 0));
+	refresh_btn = GTK_BUTTON(gtk_grid_get_child_at(GTK_GRID(win->main_mode_grid), 4, 0));
 
 	gtk_widget_set_visible(GTK_WIDGET(add_btn), TRUE);
 	gtk_widget_set_visible(GTK_WIDGET(edit_btn), TRUE);
 	gtk_widget_set_visible(GTK_WIDGET(delete_btn), TRUE);
+	gtk_widget_set_visible(GTK_WIDGET(refresh_btn), TRUE);
 
 	g_signal_connect(add_btn, "clicked", G_CALLBACK(on_add_clicked), win);
 	g_signal_connect(edit_btn, "clicked", G_CALLBACK(on_edit_clicked), win);
 	g_signal_connect(delete_btn, "clicked", G_CALLBACK(on_delete_clicked), win);
+	g_signal_connect(refresh_btn, "clicked", G_CALLBACK(on_refresh_clicked), win);
 
 	// FILE
 
@@ -456,7 +513,7 @@ void file_editor_window_open(FileEditorWindow *win, GFile *file, File *f_struct)
 
 	if(file && !f_struct){
 		filepath = g_file_get_path(file);
-		const char *server_ip =	g_settings_get_string(win->settings, "ip");
+		const char *server_ip =	g_settings_get_string(win->settings, "serverip");
 
 		file_struct = local_open_local_file(filepath, server_ip);
 	} else if (!file && f_struct) {
