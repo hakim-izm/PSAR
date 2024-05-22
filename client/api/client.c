@@ -112,7 +112,6 @@ void *initialize_client() {
             exit(EXIT_FAILURE);
         }
 
-	printf("Connection Accepted\n");
         pthread_t request_thread;
         if (pthread_create(&request_thread, NULL, receive_request, &new_socket) != 0) {
             perror("Thread creation failed");

@@ -854,7 +854,7 @@ void unlock_line(int client_socket, json_object *object) {
                     current_request_node = current_request_node->next;
                 }
             }
-            
+            close(client_socket);
             pthread_mutex_unlock(&line_mutex);
 
             if(request_waiting){
@@ -911,7 +911,7 @@ void unlock_line(int client_socket, json_object *object) {
                             exit(EXIT_FAILURE);
                         }
 
-                        close(new_client_socket);
+                        // close(new_client_socket);
                         pthread_mutex_unlock(&client_mutex);
 
                         // Supprimer la première requête de la liste
