@@ -1872,6 +1872,11 @@ void permission_lock_line(int socket, json_object *object){
         filename = strdup(json_object_get_string(filename_obj)); 
     }
 
+    // Envoi d'un message de succès au client
+    if (write(socket, "Success", sizeof("Success")) == -1) {
+        perror("Error sending success message to server");
+    }
+
     printf("J'ai maintenant verrouilé la ligne %d du fichier %s\n",line_id,filename);
 
     // J'ai le verroue sur une ligne

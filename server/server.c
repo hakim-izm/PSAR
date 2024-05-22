@@ -911,6 +911,18 @@ void unlock_line(int client_socket, json_object *object) {
                             exit(EXIT_FAILURE);
                         }
 
+                        // Attente de la réponse du serveur
+                        char response_new[1024];    
+                        if (read(new_client_socket, response_new, sizeof(response_new)) == -1) {
+                            perror("Error receiving response from server");
+                            exit(EXIT_FAILURE);
+                        }
+
+                        printf("Lock from Next Client : %s\n",response_new);
+                        
+                        // Fermeture de la socket
+                        close(new_client_socket);
+
                         // close(new_client_socket);
                         pthread_mutex_unlock(&client_mutex);
 
