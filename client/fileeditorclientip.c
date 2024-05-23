@@ -61,7 +61,6 @@ void clientip_action(GtkButton *button, FileEditorClientIP *clientip) {
 	
 	const char *ip_addr = gtk_editable_get_text(GTK_EDITABLE(clientip->clientip));
 
-	printf("[DEBUG] IP ADDRESS: %s\n", ip_addr);
 
 	if(!is_valid_ip(ip_addr)) {
 		GtkWidget *dialog = gtk_message_dialog_new(GTK_WINDOW(clientip),
@@ -85,7 +84,6 @@ void clientip_action(GtkButton *button, FileEditorClientIP *clientip) {
 
 	// DEBUG : affichage de l'adresse IP depuis les paramètres du parent
 	const char *ip = g_settings_get_string(win->settings, "clientip");
-	printf("[DEBUG] IP ADDRESS FROM PARENT: %s\n", ip);
 
 	gtk_window_close(GTK_WINDOW(clientip));
 }

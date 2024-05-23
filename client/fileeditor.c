@@ -90,7 +90,6 @@ static void save_activated (GSimpleAction *action, GVariant *parameter, gpointer
 
 static void save_as_response (GtkDialog *dialog, int response) {
 	if(response == GTK_RESPONSE_ACCEPT) {
-		printf("save_as_response - response accept\n");
 		GFile *file;
 		GtkFileChooser *chooser;
 		GtkWindow *win;
@@ -105,9 +104,7 @@ static void save_as_response (GtkDialog *dialog, int response) {
 		File *file_struct = g_object_get_data(G_OBJECT(visible_child), "file_struct");
 
 		char *path = g_file_get_path(file);
-		printf("before save_file_call\n");
 		save_file_call(file_struct, path, file_editor_win);
-		printf("after save_file_call\n");
 		g_free(path);
 	}
 	gtk_window_destroy(GTK_WINDOW(dialog));
@@ -184,9 +181,7 @@ static void quit_activated (GSimpleAction *action, GVariant *parameter, gpointer
 
 		g_signal_connect(dialog, "response", G_CALLBACK(gtk_window_close), NULL);
 	}
-
-	printf("bye\n");
-
+	
 	g_application_quit (G_APPLICATION (app));
 }
 
